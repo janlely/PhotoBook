@@ -41,6 +41,7 @@ export interface ImageElement extends BaseElement {
   src: string;
   alt?: string;
   opacity: number;
+  aspectRatioLocked?: boolean; // 添加宽高比锁定属性
 }
 
 export interface TextElement extends BaseElement {

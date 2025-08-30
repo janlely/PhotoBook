@@ -26,6 +26,9 @@ const DragDropCanvas: React.FC<DragDropCanvasProps> = ({
     moveMultipleElements,
     clearSelection,
     setActiveTool,
+    deleteSelectedElements,
+    undo,
+    redo,
   } = useCanvas();
 
   // Convert screen coordinates to canvas coordinates
@@ -461,6 +464,28 @@ const DragDropCanvas: React.FC<DragDropCanvasProps> = ({
         setActiveTool('select');
         e.preventDefault();
       }
+      
+      // 按 Backspace 或 Delete 键删除选中的元素
+      if ((e.key === 'Backspace' || e.key === 'Delete') && state.selectedElementIds.length > 0) {
+        console.log('🗑️ 按了删除键，删除选中的元素:', state.selectedElementIds);
+        deleteSelectedElements();
+        e.preventDefault();
+      }
+      
+      // Ctrl+Z 撤销功能
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        console.log('↶ 按了 Ctrl+Z，执行撤销操作');
+        undo();
+        e.preventDefault();
+      }
+      
+      // Ctrl+Shift+Z 或 Ctrl+Y 重做功能
+      if (((e.ctrlKey || e.metaKey) && e.key === 'z' && e.shiftKey) || 
+          ((e.ctrlKey || e.metaKey) && e.key === 'y')) {
+        console.log('↷ 按了重做快捷键，执行重做操作');
+        redo();
+        e.preventDefault();
+      }
     };
 
     // 添加全局键盘事件监听
@@ -469,7 +494,7 @@ const DragDropCanvas: React.FC<DragDropCanvasProps> = ({
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [clearSelection, setActiveTool]);
+  }, [clearSelection, setActiveTool, state.selectedElementIds, deleteSelectedElements, undo, redo]);
 
   return (
     <div

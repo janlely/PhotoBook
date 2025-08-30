@@ -3,6 +3,7 @@ import { CanvasProvider, useCanvas } from '../contexts/CanvasContext';
 import { useDrag } from 'react-dnd';
 import AlbumTree from '../components/AlbumTree';
 import DragDropCanvas from '../components/DragDropCanvas';
+import PropertiesPanel from '../components/PropertiesPanel';
 import type { Album, Page } from '../api/albums';
 import { albumsAPI } from '../api/albums';
 import { pagesAPI } from '../api/pages';
@@ -335,11 +336,11 @@ const HomePageContent: React.FC = () => {
                 </h1>
                 <p className="text-sm text-gray-600">
                   {selectedPage ? `相册: ${selectedAlbum?.title}` : '请选择页面开始编辑'}
-                  {selectedPage && state.selectedElementIds.length === 0 && (
+                  {/* {selectedPage && state.selectedElementIds.length === 0 && (
                     <span className="block mt-1 text-xs text-gray-500">
                       💡 点击画布空白处可隐藏元素边框 | 按 Esc 键快速取消选择
                     </span>
-                  )}
+                  )} */}
                 </p>
               </div>
               <div className="flex items-center space-x-4">
@@ -434,7 +435,7 @@ const HomePageContent: React.FC = () => {
           </div>
 
           {/* 工具元素 */}
-          <div className="p-4 flex-1 overflow-y-auto">
+          <div className="p-4 border-b border-gray-200">
             <h3 className="text-base font-semibold text-gray-900 mb-3">工具元素</h3>
             <div className="space-y-3">
               {/* 矩形图片框 */}
@@ -455,6 +456,11 @@ const HomePageContent: React.FC = () => {
                 description="拖拽添加文本"
               />
             </div>
+          </div>
+
+          {/* 属性面板 */}
+          <div className="flex-1 overflow-y-auto">
+            <PropertiesPanel />
           </div>
 
           {/* 使用说明 */}

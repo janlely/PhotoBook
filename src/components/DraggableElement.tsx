@@ -52,7 +52,7 @@ const DraggableElement: React.FC<DraggableElementProps> = ({
   // Create drag source
   const [{ isDragging }, drag, preview] = useDrag({
     type: ItemTypes.CANVAS_ELEMENT,
-    canDrag: () => !isEditing && !isResizing, // 编辑时禁止拖拽
+    canDrag: () => !isEditing && !isResizing, // 编辑时和调整大小时禁止拖拽
     item: (): CanvasElementDragItem => {
       // Detect if Ctrl/Cmd key is pressed for copy operation
       const isCtrlPressed = window.event && (window.event as any).ctrlKey || (window.event as any).metaKey;
@@ -194,41 +194,89 @@ const DraggableElement: React.FC<DraggableElementProps> = ({
       
       let newTransform = { ...startTransform };
       
+      // 检查是否是图片元素且锁定了宽高比
+      const isImageWithLockedRatio = element.type === 'image' && 
+        (element as ImageElement).aspectRatioLocked;
+      const aspectRatio = isImageWithLockedRatio ? 
+        startTransform.height / startTransform.width : null;
+      
       // 根据拖拽方向计算新的大小和位置
       switch (direction) {
         case 'se': // 右下角
           newTransform.width = Math.max(20, startTransform.width + deltaX);
-          newTransform.height = Math.max(20, startTransform.height + deltaY);
+          if (isImageWithLockedRatio && aspectRatio) {
+            newTransform.height = newTransform.width * aspectRatio;
+          } else {
+            newTransform.height = Math.max(20, startTransform.height + deltaY);
+          }
           break;
         case 'sw': // 左下角
           newTransform.width = Math.max(20, startTransform.width - deltaX);
-          newTransform.height = Math.max(20, startTransform.height + deltaY);
+          if (isImageWithLockedRatio && aspectRatio) {
+            newTransform.height = newTransform.width * aspectRatio;
+          } else {
+            newTransform.height = Math.max(20, startTransform.height + deltaY);
+          }
           newTransform.x = startTransform.x + (startTransform.width - newTransform.width);
           break;
         case 'ne': // 右上角
           newTransform.width = Math.max(20, startTransform.width + deltaX);
-          newTransform.height = Math.max(20, startTransform.height - deltaY);
-          newTransform.y = startTransform.y + (startTransform.height - newTransform.height);
+          if (isImageWithLockedRatio && aspectRatio) {
+            newTransform.height = newTransform.width * aspectRatio;
+            newTransform.y = startTransform.y + (startTransform.height - newTransform.height);
+          } else {
+            newTransform.height = Math.max(20, startTransform.height - deltaY);
+            newTransform.y = startTransform.y + (startTransform.height - newTransform.height);
+          }
           break;
         case 'nw': // 左上角
           newTransform.width = Math.max(20, startTransform.width - deltaX);
-          newTransform.height = Math.max(20, startTransform.height - deltaY);
-          newTransform.x = startTransform.x + (startTransform.width - newTransform.width);
-          newTransform.y = startTransform.y + (startTransform.height - newTransform.height);
+          if (isImageWithLockedRatio && aspectRatio) {
+            newTransform.height = newTransform.width * aspectRatio;
+            newTransform.x = startTransform.x + (startTransform.width - newTransform.width);
+            newTransform.y = startTransform.y + (startTransform.height - newTransform.height);
+          } else {
+            newTransform.height = Math.max(20, startTransform.height - deltaY);
+            newTransform.x = startTransform.x + (startTransform.width - newTransform.width);
+            newTransform.y = startTransform.y + (startTransform.height - newTransform.height);
+          }
           break;
         case 'e': // 右侧
           newTransform.width = Math.max(20, startTransform.width + deltaX);
+          if (isImageWithLockedRatio && aspectRatio) {
+            newTransform.height = newTransform.width * aspectRatio;
+            newTransform.y = startTransform.y + (startTransform.height - newTransform.height) / 2;
+          }
           break;
         case 'w': // 左侧
           newTransform.width = Math.max(20, startTransform.width - deltaX);
-          newTransform.x = startTransform.x + (startTransform.width - newTransform.width);
+          if (isImageWithLockedRatio && aspectRatio) {
+            newTransform.height = newTransform.width * aspectRatio;
+            newTransform.x = startTransform.x + (startTransform.width - newTransform.width);
+            newTransform.y = startTransform.y + (startTransform.height - newTransform.height) / 2;
+          } else {
+            newTransform.x = startTransform.x + (startTransform.width - newTransform.width);
+          }
           break;
         case 's': // 下侧
-          newTransform.height = Math.max(20, startTransform.height + deltaY);
+          if (isImageWithLockedRatio && aspectRatio) {
+            newTransform.height = Math.max(20, startTransform.height + deltaY);
+            newTransform.width = newTransform.height / aspectRatio;
+            newTransform.x = startTransform.x + (startTransform.width - newTransform.width) / 2;
+          } else {
+            newTransform.height = Math.max(20, startTransform.height + deltaY);
+          }
           break;
         case 'n': // 上侧
-          newTransform.height = Math.max(20, startTransform.height - deltaY);
-          newTransform.y = startTransform.y + (startTransform.height - newTransform.height);
+          if (isImageWithLockedRatio && aspectRatio) {
+            newTransform.height = Math.max(20, startTransform.height - deltaY);
+            newTransform.width = newTransform.height / aspectRatio;
+            newTransform.x = startTransform.x + (startTransform.width - newTransform.width) / 2;
+            newTransform.y = startTransform.y + (startTransform.height - newTransform.height);
+          } else {
+            newTransform.height = Math.max(20, startTransform.height - deltaY);
+            newTransform.y = startTransform.y + (startTransform.height - newTransform.height);
+          }
           break;
       }
       
@@ -278,29 +326,7 @@ const DraggableElement: React.FC<DraggableElementProps> = ({
     document.addEventListener('mouseup', handleMouseUp);
   }, [element.id, element.transform, state.zoom, resizeElement, isEditing, element.type, editingText, updateElement]);
 
-  // 文本编辑相关函数
-  const handleTextKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    console.log('⌨️ 按键:', e.key);
-    
-    if (e.key === 'Enter' && !e.shiftKey) {
-      // Enter 键保存并退出编辑
-      e.preventDefault();
-      finishEditing();
-    } else if (e.key === 'Escape') {
-      // Escape 键取消编辑
-      e.preventDefault();
-      cancelEditing();
-    }
-    
-    // 阻止事件冒泡，避免触发其他键盘快捷键
-    e.stopPropagation();
-  }, []);
-
-  const handleTextBlur = useCallback(() => {
-    console.log('📝 文本失去焦点，保存编辑');
-    finishEditing();
-  }, []);
-
+  // 文本编辑相关函数 - 先定义基础函数
   const finishEditing = useCallback(() => {
     if (isEditing && element.type === 'text') {
       console.log('✅ 保存文本编辑:', editingText);
@@ -317,6 +343,28 @@ const DraggableElement: React.FC<DraggableElementProps> = ({
     }
     setIsEditing(false);
   }, [element]);
+
+  const handleTextKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    console.log('⌨️ 按键:', e.key);
+    
+    if (e.key === 'Enter' && !e.shiftKey) {
+      // Enter 键保存并退出编辑
+      e.preventDefault();
+      finishEditing();
+    } else if (e.key === 'Escape') {
+      // Escape 键取消编辑
+      e.preventDefault();
+      cancelEditing();
+    }
+    
+    // 阻止事件冒泡，避免触发其他键盘快捷键
+    e.stopPropagation();
+  }, [finishEditing, cancelEditing]);
+
+  const handleTextBlur = useCallback(() => {
+    console.log('📝 文本失去焦点，保存编辑');
+    finishEditing();
+  }, [finishEditing]);
 
   // Render element content based on type
   const renderElementContent = () => {
@@ -336,14 +384,14 @@ const DraggableElement: React.FC<DraggableElementProps> = ({
         return (
           <div className="w-full h-full flex items-center relative">
             {isEditing ? (
-              // 编辑模式：使用 Headless UI Textarea
+              // 编辑模式：使用 Headless UI Textarea，禁用拖动
               <Textarea
                 ref={editableRef}
                 value={editingText}
                 onChange={(e) => setEditingText(e.target.value)}
                 onKeyDown={handleTextKeyDown}
                 onBlur={handleTextBlur}
-                className="w-full h-full resize-none outline-none bg-white bg-opacity-90 rounded px-1 border-2 border-blue-500"
+                className="w-full h-full resize-none outline-none bg-white bg-opacity-90 rounded p-2 border-2 border-blue-500"
                 style={{
                   ...textStyle,
                   minHeight: '100%',
@@ -355,14 +403,16 @@ const DraggableElement: React.FC<DraggableElementProps> = ({
                 autoFocus
               />
             ) : (
-              // 显示模式：正常显示文本
+              // 显示模式：正常显示文本，可拖动 - 与编辑模式保持一致的对齐方式
               <div
-                className="w-full h-full flex items-center"
+                className="w-full h-full cursor-pointer p-2"
                 style={{
                   ...textStyle,
                   whiteSpace: 'pre-wrap', // 保持空格和换行
                   wordBreak: 'break-word', // 允许长单词换行
+                  display: 'block', // 使用块级显示，避免flex居中
                 }}
+                title="双击编辑文本"
               >
                 {textElement.content || 'Text'}
               </div>
@@ -444,7 +494,7 @@ const DraggableElement: React.FC<DraggableElementProps> = ({
     zIndex: element.zIndex,
     // 拖动时保持元素可见，只是稍微透明，这样用户可以看到元素的实际位置
     opacity: isDragging ? 0.8 : (element.visible ? 1 : 0.3),
-    cursor: isDragging ? 'grabbing' : 'grab',
+    cursor: isEditing ? 'text' : (isDragging ? 'grabbing' : 'grab'), // 编辑时显示文本光标
     userSelect: 'none',
   };
 
@@ -459,8 +509,8 @@ const DraggableElement: React.FC<DraggableElementProps> = ({
       onDoubleClick={handleDoubleClick}
       className={`
         ${isSelected ? 'ring-2 ring-blue-500 ring-opacity-75' : ''}
-        ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}
-        hover:ring-1 hover:ring-gray-400 hover:ring-opacity-50
+        ${isEditing ? 'cursor-text' : (isDragging ? 'cursor-grabbing' : 'cursor-grab')}
+        ${!isEditing ? 'hover:ring-1 hover:ring-gray-400 hover:ring-opacity-50' : ''}
       `}
       data-element-id={element.id}
       data-element-type={element.type}
