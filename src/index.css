@@ -1,0 +1,7 @@
+@import "tailwindcss";
+
+/* 禁用全局滚动，只允许组件内部滚动 */
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+}
