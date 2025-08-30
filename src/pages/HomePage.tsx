@@ -10,7 +10,7 @@ import { uploadImage } from '../api/upload';
 import { DocumentTextIcon, PhotoIcon, Square3Stack3DIcon } from '@heroicons/react/24/outline';
 import { ItemTypes } from '../types/dnd';
 import type { ToolDragItem } from '../types/dnd';
-import type { CanvasElement, ImageElement, TextElement } from '../contexts/CanvasContext';
+import type { CanvasElement, ImageElement } from '../contexts/CanvasContext';
 
 // 可拖拽工具元素组件
 const DraggableToolElement: React.FC<{
@@ -59,31 +59,17 @@ const CanvasContent: React.FC<{
   selectedPage: Page | null;
   selectedAlbum: Album | null;
   canvasSize: { width: number; height: number };
-  editingElement: string | null;
-  editingText: string;
-  textInputRef: React.RefObject<HTMLTextAreaElement | null>;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   currentImageElementRef: React.RefObject<string | null>;
   onElementDoubleClick: (element: CanvasElement) => void;
-  onSaveTextEdit: () => void;
-  onCancelTextEdit: () => void;
-  onTextEditKeyDown: (e: React.KeyboardEvent) => void;
-  onTextChange: (value: string) => void;
   onImageUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
 }> = ({ 
   selectedPage, 
   selectedAlbum, 
   canvasSize, 
-  editingElement, 
-  editingText, 
-  textInputRef, 
   fileInputRef,
   currentImageElementRef,
   onElementDoubleClick,
-  onSaveTextEdit,
-  onCancelTextEdit,
-  onTextEditKeyDown,
-  onTextChange,
   onImageUpload
 }) => {
   const { updateElement, getElementById } = useCanvas();
@@ -128,13 +114,7 @@ const CanvasContent: React.FC<{
     }
   };
   
-  // 保存文本编辑
-  const handleSaveTextEdit = () => {
-    if (editingElement) {
-      updateElement(editingElement, { content: editingText });
-      onSaveTextEdit();
-    }
-  };
+
   
   return (
     <>
@@ -147,36 +127,7 @@ const CanvasContent: React.FC<{
         </div>
       </div>
       
-      {/* 文本编辑弹窗 */}
-      {editingElement && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-96 max-w-90vw">
-            <h3 className="text-lg font-semibold mb-4">编辑文本</h3>
-            <textarea
-              ref={textInputRef}
-              value={editingText}
-              onChange={(e) => onTextChange(e.target.value)}
-              onKeyDown={onTextEditKeyDown}
-              className="w-full h-32 p-3 border border-gray-300 rounded-md resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="输入文本内容..."
-            />
-            <div className="flex justify-end space-x-3 mt-4">
-              <button
-                onClick={onCancelTextEdit}
-                className="px-4 py-2 text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
-              >
-                取消
-              </button>
-              <button
-                onClick={handleSaveTextEdit}
-                className="px-4 py-2 text-white bg-blue-500 rounded-md hover:bg-blue-600 transition-colors"
-              >
-                保存
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
       
       {/* 隐藏的文件输入 */}
       <input
@@ -196,11 +147,6 @@ const HomePageContent: React.FC = () => {
   const [selectedPage, setSelectedPage] = useState<Page | null>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
   const [albums, setAlbums] = useState<Album[]>([]);
-  
-  // 用于文本编辑的状态
-  const [editingElement, setEditingElement] = useState<string | null>(null);
-  const [editingText, setEditingText] = useState('');
-  const textInputRef = useRef<HTMLTextAreaElement>(null);
   
   // 用于图片上传的文件输入引用
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -336,28 +282,16 @@ const HomePageContent: React.FC = () => {
     }
   };
   
-  // 元素双击编辑处理函数
+  // 元素双击编辑处理函数（只处理图片上传）
   const handleElementDoubleClick = (element: CanvasElement) => {
-    if (element.type === 'text') {
-      // 文本元素：进入编辑模式
-      const textElement = element as TextElement;
-      setEditingElement(element.id);
-      setEditingText(textElement.content);
-      
-      // 延迟聚焦到文本输入框
-      setTimeout(() => {
-        if (textInputRef.current) {
-          textInputRef.current.focus();
-          textInputRef.current.select();
-        }
-      }, 100);
-    } else if (element.type === 'image') {
+    if (element.type === 'image') {
       // 图片元素：记录当前元素ID并触发文件选择
       currentImageElementRef.current = element.id;
       if (fileInputRef.current) {
         fileInputRef.current.click();
       }
     }
+    // 文本元素的编辑现在由 DraggableElement 组件直接处理
   };
   
   // 图片上传处理函数  
@@ -368,32 +302,7 @@ const HomePageContent: React.FC = () => {
     }
   };
   
-  // 保存文本编辑
-  const handleSaveTextEdit = () => {
-    if (editingElement) {
-      // 这里会在CanvasContent组件中实际更新元素
-      console.log('Text edited, need to update element');
-      setEditingElement(null);
-      setEditingText('');
-    }
-  };
-  
-  // 取消文本编辑
-  const handleCancelTextEdit = () => {
-    setEditingElement(null);
-    setEditingText('');
-  };
-  
-  // 处理文本编辑的键盘事件
-  const handleTextEditKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSaveTextEdit();
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      handleCancelTextEdit();
-    }
-  };
+
 
   return (
     <div className="h-[calc(100vh-4rem)] w-screen bg-gray-100 flex gap-6 p-6 overflow-hidden">
@@ -426,6 +335,11 @@ const HomePageContent: React.FC = () => {
                 </h1>
                 <p className="text-sm text-gray-600">
                   {selectedPage ? `相册: ${selectedAlbum?.title}` : '请选择页面开始编辑'}
+                  {selectedPage && state.selectedElementIds.length === 0 && (
+                    <span className="block mt-1 text-xs text-gray-500">
+                      💡 点击画布空白处可隐藏元素边框 | 按 Esc 键快速取消选择
+                    </span>
+                  )}
                 </p>
               </div>
               <div className="flex items-center space-x-4">
@@ -456,16 +370,9 @@ const HomePageContent: React.FC = () => {
             selectedPage={selectedPage}
             selectedAlbum={selectedAlbum}
             canvasSize={canvasSize}
-            editingElement={editingElement}
-            editingText={editingText}
-            textInputRef={textInputRef}
             fileInputRef={fileInputRef}
             currentImageElementRef={currentImageElementRef}
             onElementDoubleClick={handleElementDoubleClick}
-            onSaveTextEdit={handleSaveTextEdit}
-            onCancelTextEdit={handleCancelTextEdit}
-            onTextEditKeyDown={handleTextEditKeyDown}
-            onTextChange={setEditingText}
             onImageUpload={handleImageUpload}
           />
         </div>

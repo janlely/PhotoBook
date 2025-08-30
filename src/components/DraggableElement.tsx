@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { useDrag, useDragLayer } from 'react-dnd';
 import { getEmptyImage } from 'react-dnd-html5-backend';
+import { Textarea } from '@headlessui/react';
 import { useCanvas } from '../contexts/CanvasContext';
 import { ItemTypes } from '../types/dnd';
 import type { CanvasElement, TextElement, ImageElement, ShapeElement } from '../contexts/CanvasContext';
@@ -14,6 +15,8 @@ interface DraggableElementProps {
   children?: React.ReactNode;
 }
 
+type ResizeDirection = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
+
 const DraggableElement: React.FC<DraggableElementProps> = ({
   element,
   isSelected = false,
@@ -22,14 +25,34 @@ const DraggableElement: React.FC<DraggableElementProps> = ({
   children,
 }) => {
   const elementRef = useRef<HTMLDivElement>(null);
-  const { state } = useCanvas();
+  const editableRef = useRef<HTMLTextAreaElement>(null);
+  const { state, resizeElement, updateElement } = useCanvas();
   
   // 用于在拖动过程中实时更新元素位置的状态
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  
+  // 调整大小状态
+  const [isResizing, setIsResizing] = useState(false);
+  const [resizeDirection, setResizeDirection] = useState<ResizeDirection | null>(null);
+  const [resizeStartPos, setResizeStartPos] = useState({ x: 0, y: 0 });
+  const [originalTransform, setOriginalTransform] = useState(element.transform);
+  
+  // 文本编辑状态
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingText, setEditingText] = useState('');
+  
+  // 当元素内容变化时，同步编辑文本（但不覆盖正在编辑的内容）
+  useEffect(() => {
+    if (element.type === 'text' && !isEditing) {
+      const textElement = element as TextElement;
+      setEditingText(textElement.content || 'Text');
+    }
+  }, [element, isEditing]);
 
   // Create drag source
   const [{ isDragging }, drag, preview] = useDrag({
     type: ItemTypes.CANVAS_ELEMENT,
+    canDrag: () => !isEditing && !isResizing, // 编辑时禁止拖拽
     item: (): CanvasElementDragItem => {
       // Detect if Ctrl/Cmd key is pressed for copy operation
       const isCtrlPressed = window.event && (window.event as any).ctrlKey || (window.event as any).metaKey;
@@ -84,38 +107,266 @@ const DraggableElement: React.FC<DraggableElementProps> = ({
   // Handle element selection
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
+    
+    console.log('📍 元素鼠标按下:', {
+      elementId: element.id,
+      elementType: element.type,
+      isSelected,
+      ctrlKey: e.ctrlKey,
+      metaKey: e.metaKey
+    });
+    
     if (onSelect) {
       onSelect(element.id, e.ctrlKey || e.metaKey);
     }
-  }, [element.id, onSelect]);
+  }, [element.id, element.type, isSelected, onSelect]);
 
   // Handle double click
   const handleDoubleClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    if (onDoubleClick) {
+    
+    // 如果是文本元素，直接进入编辑模式
+    if (element.type === 'text') {
+      console.log('📝 双击文本元素，进入编辑模式');
+      const textElement = element as TextElement;
+      
+      // 使用最新的元素内容初始化编辑状态
+      const currentContent = textElement.content || 'Text';
+      setEditingText(currentContent);
+      setIsEditing(true);
+      
+      console.log('📝 初始化编辑内容:', currentContent);
+      
+      // 延迟聚焦到编辑器
+      setTimeout(() => {
+        if (editableRef.current) {
+          editableRef.current.focus();
+          // 选中所有文本
+          editableRef.current.select();
+        }
+      }, 50);
+    } else if (onDoubleClick) {
+      // 非文本元素使用原有逻辑
       onDoubleClick(element);
     }
   }, [element, onDoubleClick]);
+
+  // 调整大小相关函数
+  const handleResizeStart = useCallback((e: React.MouseEvent, direction: ResizeDirection) => {
+    e.stopPropagation();
+    e.preventDefault();
+    
+    // 如果正在编辑文本，先保存当前编辑的内容
+    if (isEditing && element.type === 'text') {
+      console.log('💾 调整大小前保存文本:', editingText);
+      updateElement(element.id, { content: editingText });
+    }
+    
+    console.log('🎯 开始调整大小:', {
+      direction,
+      elementId: element.id,
+      currentTransform: element.transform,
+      mousePos: { x: e.clientX, y: e.clientY },
+      zoom: state.zoom
+    });
+    
+    setIsResizing(true);
+    setResizeDirection(direction);
+    setResizeStartPos({ x: e.clientX, y: e.clientY });
+    setOriginalTransform({ ...element.transform });
+    
+    const startPos = { x: e.clientX, y: e.clientY };
+    const startTransform = { ...element.transform };
+    
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!direction) return;
+      
+      const deltaX = (e.clientX - startPos.x) / state.zoom;
+      const deltaY = (e.clientY - startPos.y) / state.zoom;
+      
+      console.log('📐 调整大小中:', {
+        direction,
+        deltaX,
+        deltaY,
+        mousePos: { x: e.clientX, y: e.clientY },
+        zoom: state.zoom
+      });
+      
+      let newTransform = { ...startTransform };
+      
+      // 根据拖拽方向计算新的大小和位置
+      switch (direction) {
+        case 'se': // 右下角
+          newTransform.width = Math.max(20, startTransform.width + deltaX);
+          newTransform.height = Math.max(20, startTransform.height + deltaY);
+          break;
+        case 'sw': // 左下角
+          newTransform.width = Math.max(20, startTransform.width - deltaX);
+          newTransform.height = Math.max(20, startTransform.height + deltaY);
+          newTransform.x = startTransform.x + (startTransform.width - newTransform.width);
+          break;
+        case 'ne': // 右上角
+          newTransform.width = Math.max(20, startTransform.width + deltaX);
+          newTransform.height = Math.max(20, startTransform.height - deltaY);
+          newTransform.y = startTransform.y + (startTransform.height - newTransform.height);
+          break;
+        case 'nw': // 左上角
+          newTransform.width = Math.max(20, startTransform.width - deltaX);
+          newTransform.height = Math.max(20, startTransform.height - deltaY);
+          newTransform.x = startTransform.x + (startTransform.width - newTransform.width);
+          newTransform.y = startTransform.y + (startTransform.height - newTransform.height);
+          break;
+        case 'e': // 右侧
+          newTransform.width = Math.max(20, startTransform.width + deltaX);
+          break;
+        case 'w': // 左侧
+          newTransform.width = Math.max(20, startTransform.width - deltaX);
+          newTransform.x = startTransform.x + (startTransform.width - newTransform.width);
+          break;
+        case 's': // 下侧
+          newTransform.height = Math.max(20, startTransform.height + deltaY);
+          break;
+        case 'n': // 上侧
+          newTransform.height = Math.max(20, startTransform.height - deltaY);
+          newTransform.y = startTransform.y + (startTransform.height - newTransform.height);
+          break;
+      }
+      
+      console.log('📏 新的变换属性:', {
+        direction,
+        oldTransform: startTransform,
+        newTransform,
+        changes: {
+          width: newTransform.width - startTransform.width,
+          height: newTransform.height - startTransform.height,
+          x: newTransform.x - startTransform.x,
+          y: newTransform.y - startTransform.y
+        }
+      });
+      
+      // 实时更新元素大小
+      console.log('🔄 调用 resizeElement:', { elementId: element.id, newTransform });
+      resizeElement(element.id, newTransform);
+    };
+    
+    const handleMouseUp = () => {
+      console.log('✅ 调整大小结束:', {
+        direction,
+        elementId: element.id,
+        finalTransform: element.transform,
+        isEditing
+      });
+      
+      setIsResizing(false);
+      setResizeDirection(null);
+      
+      // 如果正在编辑文本，调整大小结束后重新聚焦到编辑器
+      if (isEditing && editableRef.current) {
+        setTimeout(() => {
+          if (editableRef.current) {
+            editableRef.current.focus();
+            console.log('🎯 调整大小结束后重新聚焦编辑器');
+          }
+        }, 50);
+      }
+      
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [element.id, element.transform, state.zoom, resizeElement, isEditing, element.type, editingText, updateElement]);
+
+  // 文本编辑相关函数
+  const handleTextKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    console.log('⌨️ 按键:', e.key);
+    
+    if (e.key === 'Enter' && !e.shiftKey) {
+      // Enter 键保存并退出编辑
+      e.preventDefault();
+      finishEditing();
+    } else if (e.key === 'Escape') {
+      // Escape 键取消编辑
+      e.preventDefault();
+      cancelEditing();
+    }
+    
+    // 阻止事件冒泡，避免触发其他键盘快捷键
+    e.stopPropagation();
+  }, []);
+
+  const handleTextBlur = useCallback(() => {
+    console.log('📝 文本失去焦点，保存编辑');
+    finishEditing();
+  }, []);
+
+  const finishEditing = useCallback(() => {
+    if (isEditing && element.type === 'text') {
+      console.log('✅ 保存文本编辑:', editingText);
+      updateElement(element.id, { content: editingText });
+      setIsEditing(false);
+    }
+  }, [isEditing, element.type, element.id, editingText, updateElement]);
+
+  const cancelEditing = useCallback(() => {
+    console.log('❌ 取消文本编辑');
+    if (element.type === 'text') {
+      const textElement = element as TextElement;
+      setEditingText(textElement.content || 'Text');
+    }
+    setIsEditing(false);
+  }, [element]);
 
   // Render element content based on type
   const renderElementContent = () => {
     switch (element.type) {
       case 'text':
         const textElement = element as TextElement;
+        const textStyle = {
+          fontSize: `${textElement.fontSize}px`,
+          fontFamily: textElement.fontFamily,
+          fontWeight: textElement.fontWeight,
+          fontStyle: textElement.fontStyle,
+          color: textElement.color,
+          textAlign: textElement.textAlign,
+          lineHeight: textElement.lineHeight,
+        };
+        
         return (
-          <div
-            className="w-full h-full flex items-center"
-            style={{
-              fontSize: `${textElement.fontSize}px`,
-              fontFamily: textElement.fontFamily,
-              fontWeight: textElement.fontWeight,
-              fontStyle: textElement.fontStyle,
-              color: textElement.color,
-              textAlign: textElement.textAlign,
-              lineHeight: textElement.lineHeight,
-            }}
-          >
-            {textElement.content || 'Text'}
+          <div className="w-full h-full flex items-center relative">
+            {isEditing ? (
+              // 编辑模式：使用 Headless UI Textarea
+              <Textarea
+                ref={editableRef}
+                value={editingText}
+                onChange={(e) => setEditingText(e.target.value)}
+                onKeyDown={handleTextKeyDown}
+                onBlur={handleTextBlur}
+                className="w-full h-full resize-none outline-none bg-white bg-opacity-90 rounded px-1 border-2 border-blue-500"
+                style={{
+                  ...textStyle,
+                  minHeight: '100%',
+                  boxShadow: '0 0 0 2px rgba(59, 130, 246, 0.2)',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                }}
+                placeholder="输入文本..."
+                autoFocus
+              />
+            ) : (
+              // 显示模式：正常显示文本
+              <div
+                className="w-full h-full flex items-center"
+                style={{
+                  ...textStyle,
+                  whiteSpace: 'pre-wrap', // 保持空格和换行
+                  wordBreak: 'break-word', // 允许长单词换行
+                }}
+              >
+                {textElement.content || 'Text'}
+              </div>
+            )}
           </div>
         );
 
@@ -213,6 +464,7 @@ const DraggableElement: React.FC<DraggableElementProps> = ({
       `}
       data-element-id={element.id}
       data-element-type={element.type}
+      data-is-canvas-element="true"
     >
       {/* Element content */}
       <div className="w-full h-full overflow-hidden">
@@ -226,14 +478,69 @@ const DraggableElement: React.FC<DraggableElementProps> = ({
           <div className="absolute inset-0 border-2 border-blue-500 border-dashed pointer-events-none" />
           
           {/* Resize handles */}
-          <div className="absolute -top-1 -left-1 w-2 h-2 bg-blue-500 border border-white cursor-nw-resize" />
-          <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-blue-500 border border-white cursor-n-resize" />
-          <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 border border-white cursor-ne-resize" />
-          <div className="absolute top-1/2 transform -translate-y-1/2 -right-1 w-2 h-2 bg-blue-500 border border-white cursor-e-resize" />
-          <div className="absolute -bottom-1 -right-1 w-2 h-2 bg-blue-500 border border-white cursor-se-resize" />
-          <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-blue-500 border border-white cursor-s-resize" />
-          <div className="absolute -bottom-1 -left-1 w-2 h-2 bg-blue-500 border border-white cursor-sw-resize" />
-          <div className="absolute top-1/2 transform -translate-y-1/2 -left-1 w-2 h-2 bg-blue-500 border border-white cursor-w-resize" />
+          <div 
+            className="absolute -top-1 -left-1 w-3 h-3 bg-blue-500 border border-white cursor-nw-resize hover:bg-blue-600 hover:scale-110 transition-all"
+            onMouseDown={(e) => {
+              console.log('📍 点击了 NW 调整大小控制点');
+              handleResizeStart(e, 'nw');
+            }}
+          />
+          <div 
+            className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-3 h-3 bg-blue-500 border border-white cursor-n-resize hover:bg-blue-600 hover:scale-110 transition-all"
+            onMouseDown={(e) => {
+              console.log('📍 点击了 N 调整大小控制点');
+              handleResizeStart(e, 'n');
+            }}
+          />
+          <div 
+            className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 border border-white cursor-ne-resize hover:bg-blue-600 hover:scale-110 transition-all"
+            onMouseDown={(e) => {
+              console.log('📍 点击了 NE 调整大小控制点');
+              handleResizeStart(e, 'ne');
+            }}
+          />
+          <div 
+            className="absolute top-1/2 transform -translate-y-1/2 -right-1 w-3 h-3 bg-blue-500 border border-white cursor-e-resize hover:bg-blue-600 hover:scale-110 transition-all"
+            onMouseDown={(e) => {
+              console.log('📍 点击了 E 调整大小控制点');
+              handleResizeStart(e, 'e');
+            }}
+          />
+          <div 
+            className="absolute -bottom-1 -right-1 w-3 h-3 bg-blue-500 border border-white cursor-se-resize hover:bg-blue-600 hover:scale-110 transition-all"
+            onMouseDown={(e) => {
+              console.log('📍 点击了 SE 调整大小控制点');
+              handleResizeStart(e, 'se');
+            }}
+          />
+          <div 
+            className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-3 h-3 bg-blue-500 border border-white cursor-s-resize hover:bg-blue-600 hover:scale-110 transition-all"
+            onMouseDown={(e) => {
+              console.log('📍 点击了 S 调整大小控制点');
+              handleResizeStart(e, 's');
+            }}
+          />
+          <div 
+            className="absolute -bottom-1 -left-1 w-3 h-3 bg-blue-500 border border-white cursor-sw-resize hover:bg-blue-600 hover:scale-110 transition-all"
+            onMouseDown={(e) => {
+              console.log('📍 点击了 SW 调整大小控制点');
+              handleResizeStart(e, 'sw');
+            }}
+          />
+          <div 
+            className="absolute top-1/2 transform -translate-y-1/2 -left-1 w-3 h-3 bg-blue-500 border border-white cursor-w-resize hover:bg-blue-600 hover:scale-110 transition-all"
+            onMouseDown={(e) => {
+              console.log('📍 点击了 W 调整大小控制点');
+              handleResizeStart(e, 'w');
+            }}
+          />
+          
+          {/* 调整大小状态指示 */}
+          {isResizing && (
+            <div className="absolute -top-8 left-0 bg-black text-white px-2 py-1 rounded text-xs z-50">
+              调整中: {resizeDirection}
+            </div>
+          )}
         </>
       )}
     </div>

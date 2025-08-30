@@ -420,10 +420,27 @@ const DragDropCanvas: React.FC<DragDropCanvasProps> = ({
 
   // Handle click events
   const handleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === canvasRef.current) {
-      // Clicked on empty canvas area
+    console.log('📍 DragDropCanvas 点击事件:', {
+      target: e.target,
+      currentTarget: e.currentTarget,
+      canvasRef: canvasRef.current,
+      targetClassName: (e.target as HTMLElement).className,
+      targetTagName: (e.target as HTMLElement).tagName
+    });
+    
+    // 检查是否点击的是画布元素或其子元素
+    const target = e.target as HTMLElement;
+    const isElementOrChild = target.closest('[data-is-canvas-element="true"]') !== null ||
+                           target.dataset.isCanvasElement === 'true' ||
+                           target.dataset.elementId !== undefined;
+    
+    // 如果没有点击到画布元素，则清除选择
+    if (!isElementOrChild) {
+      console.log('🎨 点击了画布空白区域，清除所有选择');
       clearSelection();
       setActiveTool('select');
+    } else {
+      console.log('🎯 点击了画布元素，保持选择状态');
     }
   }, [clearSelection, setActiveTool]);
 
@@ -434,6 +451,26 @@ const DragDropCanvas: React.FC<DragDropCanvasProps> = ({
     }
   }, [drop]);
 
+  // Handle keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // 按 Escape 键清除选择
+      if (e.key === 'Escape') {
+        console.log('⌨️ 按了 Escape 键，清除所有选择');
+        clearSelection();
+        setActiveTool('select');
+        e.preventDefault();
+      }
+    };
+
+    // 添加全局键盘事件监听
+    document.addEventListener('keydown', handleKeyDown);
+    
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [clearSelection, setActiveTool]);
+
   return (
     <div
       ref={canvasRef}
@@ -441,7 +478,7 @@ const DragDropCanvas: React.FC<DragDropCanvasProps> = ({
         isOver && canDrop 
           ? 'bg-blue-50' 
           : ''
-      } ${className || ''}`}
+      } ${className || ''} focus:outline-none`}
       style={{
         width: state.canvasSize.width * state.zoom,
         height: state.canvasSize.height * state.zoom,
@@ -449,7 +486,20 @@ const DragDropCanvas: React.FC<DragDropCanvasProps> = ({
         transformOrigin: '0 0',
         cursor: state.activeTool === 'select' ? 'default' : 'crosshair',
       }}
+      tabIndex={0}
       onClick={handleClick}
+      onMouseDown={(e) => {
+        console.log('📍 画布鼠标按下:', {
+          target: e.target,
+          currentTarget: e.currentTarget,
+          tagName: (e.target as HTMLElement).tagName,
+          className: (e.target as HTMLElement).className
+        });
+        // 点击后立即获取焦点，这样键盘事件能正常工作
+        if (canvasRef.current) {
+          canvasRef.current.focus();
+        }
+      }}
     >
       {/* Canvas grid overlay */}
       {state.isGridVisible && (

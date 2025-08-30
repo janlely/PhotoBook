@@ -397,11 +397,31 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
   }, [addToHistory]);
 
   const resizeElement = useCallback((id: string, newTransform: Partial<Transform>) => {
+    console.log('📝 CanvasContext.resizeElement 被调用:', {
+      elementId: id,
+      newTransform,
+      currentElement: state.elements.find(el => el.id === id)
+    });
+    
+    const element = state.elements.find(el => el.id === id);
+    if (!element) {
+      console.error('❌ 找不到元素:', id);
+      return;
+    }
+    
+    const updatedTransform = {
+      ...element.transform,
+      ...newTransform,
+    };
+    
+    console.log('🔄 更新元素变换:', {
+      elementId: id,
+      oldTransform: element.transform,
+      newTransform: updatedTransform
+    });
+    
     updateElement(id, {
-      transform: {
-        ...state.elements.find(el => el.id === id)?.transform!,
-        ...newTransform,
-      },
+      transform: updatedTransform,
     });
   }, [state.elements, updateElement]);
 
