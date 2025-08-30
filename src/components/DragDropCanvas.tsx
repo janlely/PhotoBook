@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useCallback } from 'react';
 import { useDrop } from 'react-dnd';
 import { useCanvas } from '../contexts/CanvasContext';
+import { uploadImage } from '../api/upload';
 import { ItemTypes } from '../types/dnd';
 import type { DragItem, DropResult, CanvasElementDragItem, ToolDragItem, FileDragItem } from '../types/dnd';
 import type { Point, CanvasElement } from '../contexts/CanvasContext';
@@ -277,49 +278,92 @@ const DragDropCanvas: React.FC<DragDropCanvasProps> = ({
     const canvasPosition = screenToCanvas(clientOffset.x, clientOffset.y);
     
     // Process uploaded files
-    item.files.forEach((file, index) => {
+    item.files.forEach(async (file, index) => {
       if (file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const result = e.target?.result as string;
-          if (result) {
-            let finalPosition = {
-              x: canvasPosition.x + (index * 20), // Offset multiple files
-              y: canvasPosition.y + (index * 20),
+        try {
+          // 使用后台 API 上传图片
+          const result = await uploadImage(file);
+          console.log('图片上传成功:', result);
+          
+          let finalPosition = {
+            x: canvasPosition.x + (index * 20), // Offset multiple files
+            y: canvasPosition.y + (index * 20),
+          };
+
+          // Snap to grid if enabled
+          if (state.isSnapToGrid) {
+            finalPosition = {
+              x: Math.round(finalPosition.x / state.gridSize) * state.gridSize,
+              y: Math.round(finalPosition.y / state.gridSize) * state.gridSize,
             };
-
-            // Snap to grid if enabled
-            if (state.isSnapToGrid) {
-              finalPosition = {
-                x: Math.round(finalPosition.x / state.gridSize) * state.gridSize,
-                y: Math.round(finalPosition.y / state.gridSize) * state.gridSize,
-              };
-            }
-
-            const newImageElement: any = {
-              type: 'image',
-              transform: {
-                x: finalPosition.x,
-                y: finalPosition.y,
-                width: 200,
-                height: 150,
-                rotation: 0,
-                scaleX: 1,
-                scaleY: 1,
-              },
-              visible: true,
-              locked: false,
-              zIndex: state.elements.length + index,
-              src: result,
-              alt: file.name,
-              opacity: 1,
-            };
-
-            const elementId = addElement(newImageElement);
-            console.log(`Created image element from file ${file.name}:`, elementId);
           }
-        };
-        reader.readAsDataURL(file);
+
+          const newImageElement: any = {
+            type: 'image',
+            transform: {
+              x: finalPosition.x,
+              y: finalPosition.y,
+              width: 200,
+              height: 150,
+              rotation: 0,
+              scaleX: 1,
+              scaleY: 1,
+            },
+            visible: true,
+            locked: false,
+            zIndex: state.elements.length + index,
+            src: result.image.url, // 使用短链接URL
+            alt: result.image.originalName,
+            opacity: 1,
+          };
+
+          const elementId = addElement(newImageElement);
+          console.log(`Created image element from file ${file.name}:`, elementId);
+          
+        } catch (error) {
+          console.error('图片上传失败:', error);
+          // 如果上传失败，使用 base64 作为备用方案
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const result = e.target?.result as string;
+            if (result) {
+              let finalPosition = {
+                x: canvasPosition.x + (index * 20),
+                y: canvasPosition.y + (index * 20),
+              };
+
+              if (state.isSnapToGrid) {
+                finalPosition = {
+                  x: Math.round(finalPosition.x / state.gridSize) * state.gridSize,
+                  y: Math.round(finalPosition.y / state.gridSize) * state.gridSize,
+                };
+              }
+
+              const newImageElement: any = {
+                type: 'image',
+                transform: {
+                  x: finalPosition.x,
+                  y: finalPosition.y,
+                  width: 200,
+                  height: 150,
+                  rotation: 0,
+                  scaleX: 1,
+                  scaleY: 1,
+                },
+                visible: true,
+                locked: false,
+                zIndex: state.elements.length + index,
+                src: result, // 备用的 base64
+                alt: file.name,
+                opacity: 1,
+              };
+
+              const elementId = addElement(newImageElement);
+              console.log(`Fallback: Created image element from file ${file.name}:`, elementId);
+            }
+          };
+          reader.readAsDataURL(file);
+        }
       }
     });
   }, [screenToCanvas, state.isSnapToGrid, state.gridSize, state.elements.length, addElement]);
@@ -393,12 +437,10 @@ const DragDropCanvas: React.FC<DragDropCanvasProps> = ({
   return (
     <div
       ref={canvasRef}
-      className={`relative bg-white border-2 border-dashed ${
+      className={`relative bg-white ${
         isOver && canDrop 
-          ? 'border-blue-400 bg-blue-50' 
-          : canDrop 
-          ? 'border-gray-300' 
-          : 'border-gray-200'
+          ? 'bg-blue-50' 
+          : ''
       } ${className || ''}`}
       style={{
         width: state.canvasSize.width * state.zoom,

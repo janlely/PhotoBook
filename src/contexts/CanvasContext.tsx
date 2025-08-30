@@ -1,4 +1,8 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import type { ReactNode } from 'react';
+import { useAutoSave } from '../hooks/useAutoSave';
+import type { SaveStatus } from '../hooks/useAutoSave';
+import type { PageCanvasData } from '../api/pages';
 
 // Base types for canvas elements
 export interface Point {
@@ -76,6 +80,7 @@ export interface CanvasState {
   isGridVisible: boolean;
   isSnapToGrid: boolean;
   gridSize: number;
+  currentPageId: number | null; // 添加当前页面ID
 }
 
 interface CanvasContextType {
@@ -126,6 +131,15 @@ interface CanvasContextType {
   toggleSnapToGrid: () => void;
   setGridSize: (size: number) => void;
   
+  // Page operations
+  setCurrentPageId: (pageId: number | null) => void;
+  loadCanvasData: (data: PageCanvasData) => void;
+  
+  // Auto-save operations
+  saveStatus: SaveStatus;
+  forceSave: () => void;
+  clearSaveError: () => void;
+  
   // Utility functions
   getElementById: (id: string) => CanvasElement | undefined;
   getSelectedElements: () => CanvasElement[];
@@ -155,6 +169,7 @@ const initialState: CanvasState = {
   isGridVisible: false,
   isSnapToGrid: false,
   gridSize: 20,
+  currentPageId: null,
 };
 
 interface CanvasProviderProps {
@@ -163,6 +178,9 @@ interface CanvasProviderProps {
 
 export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
   const [state, setState] = useState<CanvasState>(initialState);
+  
+  // 自动保存集成
+  const { triggerSave, saveStatus, forceSave, clearError } = useAutoSave(state.currentPageId, 1000);
 
   const generateId = useCallback(() => {
     return `element_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -179,6 +197,21 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
       };
     });
   }, []);
+
+  // 监听状态变化并触发保存
+  useEffect(() => {
+    // 只有在有页面ID时才触发保存
+    if (state.currentPageId && state.elements.length >= 0) {
+      const canvasData: Omit<PageCanvasData, 'lastModified'> = {
+        canvasSize: state.canvasSize,
+        elements: state.elements,
+        version: 1
+      };
+      
+      console.log('自动保存触发，元素数量:', state.elements.length, '页面ID:', state.currentPageId);
+      triggerSave(canvasData);
+    }
+  }, [state.elements, state.canvasSize, state.currentPageId, triggerSave]);
 
   const addElement = useCallback((elementData: Omit<CanvasElement, 'id' | 'createdAt' | 'updatedAt'>) => {
     const id = generateId();
@@ -204,13 +237,16 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
   }, [generateId, addToHistory]);
 
   const updateElement = useCallback((id: string, updates: Partial<CanvasElement>) => {
+    console.log('updateElement 被调用:', { id, updates });
     setState(prev => {
-      const newElements = prev.elements.map(element =>
-        element.id === id
-          ? { ...element, ...updates, updatedAt: new Date() }
-          : element
-      );
+      const newElements = prev.elements.map(element => {
+        if (element.id === id) {
+          return { ...element, ...updates, updatedAt: new Date() } as CanvasElement;
+        }
+        return element;
+      });
       addToHistory(newElements);
+      console.log('元素更新后，元素数量:', newElements.length);
       return {
         ...prev,
         elements: newElements,
@@ -520,6 +556,31 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
     }
   }, [addToHistory]);
 
+  // 页面操作方法
+  const setCurrentPageId = useCallback((pageId: number | null) => {
+    setState(prev => ({
+      ...prev,
+      currentPageId: pageId,
+      // 切换页面时清空选中状态
+      selectedElementIds: [],
+    }));
+  }, []);
+
+  const loadCanvasData = useCallback((data: PageCanvasData) => {
+    setState(prev => {
+      // 加载数据时不添加到历史记录，因为这是初始化操作
+      return {
+        ...prev,
+        elements: data.elements || [],
+        canvasSize: data.canvasSize || prev.canvasSize,
+        selectedElementIds: [],
+        // 重置历史记录
+        history: [data.elements || []],
+        historyIndex: 0,
+      };
+    });
+  }, []);
+
   const contextValue: CanvasContextType = {
     state,
     addElement,
@@ -550,6 +611,11 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
     toggleGrid,
     toggleSnapToGrid,
     setGridSize,
+    setCurrentPageId,
+    loadCanvasData,
+    saveStatus,
+    forceSave,
+    clearSaveError: clearError,
     getElementById,
     getSelectedElements,
     exportCanvasData,

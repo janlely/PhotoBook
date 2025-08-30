@@ -22,6 +22,8 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   albums    Album[]
+  images    Image[]
+  imageLinks ImageLink[]
 }
 
 model Album {
@@ -45,4 +47,36 @@ model Page {
   album     Album    @relation(fields: [albumId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Image {
+  id        Int      @id @default(autoincrement())
+  filename  String   @unique
+  originalName String
+  mimeType  String
+  size      Int
+  sha256    String   @unique
+  filePath  String
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  imageLinks ImageLink[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ImageLink {
+  id        Int      @id @default(autoincrement())
+  shortCode String   @unique  // 短链接代码，如 "abc123"
+  imageId   Int
+  image     Image    @relation(fields: [imageId], references: [id], onDelete: Cascade)
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  accessCount Int    @default(0)  // 访问计数
+  isActive  Boolean  @default(true)  // 是否激活
+  expiresAt DateTime?  // 过期时间（可选）
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([shortCode])
+  @@index([imageId])
 }

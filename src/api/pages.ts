@@ -1,4 +1,5 @@
 import api from './auth';
+import type { CanvasElement, Size } from '../contexts/CanvasContext';
 
 export interface Page {
   id: number;
@@ -7,6 +8,13 @@ export interface Page {
   albumId: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface PageCanvasData {
+  canvasSize: Size;
+  elements: CanvasElement[];
+  version: number;
+  lastModified: string;
 }
 
 export const pagesAPI = {
@@ -37,6 +45,18 @@ export const pagesAPI = {
   // 删除页面
   delete: async (id: number): Promise<void> => {
     await api.delete(`/pages/${id}`);
+  },
+
+  // 更新页面画布数据
+  updateCanvas: async (pageId: number, canvasData: Omit<PageCanvasData, 'lastModified'>): Promise<{ message: string; lastModified: string }> => {
+    const response = await api.put(`/pages/${pageId}/canvas`, canvasData);
+    return response.data;
+  },
+
+  // 获取页面画布数据
+  getCanvas: async (pageId: number): Promise<PageCanvasData> => {
+    const response = await api.get(`/pages/${pageId}/canvas`);
+    return response.data;
   },
 };
 

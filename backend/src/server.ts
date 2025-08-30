@@ -1,10 +1,13 @@
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import path from 'path';
 import { PrismaClient } from './generated/prisma';
 import authRoutes from './routes/auth';
 import albumRoutes from './routes/albums';
 import pageRoutes from './routes/pages';
+import uploadRoutes from './routes/upload';
+import imageRoutes from './routes/images';
 
 const app = express();
 const prisma = new PrismaClient();
@@ -21,6 +24,12 @@ app.use(cookieParser());
 app.use('/api/auth', authRoutes);
 app.use('/api/albums', albumRoutes);
 app.use('/api/pages', pageRoutes);
+app.use('/api/upload', uploadRoutes);
+app.use('/api/images', imageRoutes); // 短链接图片访问路由
+app.use('/img', imageRoutes); // 新的短链接图片访问路由 (/img)
+
+// 静态文件服务 - 提供上传的图片访问
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // 健康检查
 app.get('/', (req, res) => {

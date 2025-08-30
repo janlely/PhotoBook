@@ -54,142 +54,6 @@ const DraggableToolElement: React.FC<{
   );
 };
 
-// 画布内容组件 - 在CanvasProvider内部，可以访问canvas context
-const CanvasContent: React.FC<{
-  selectedPage: Page | null;
-  selectedAlbum: Album | null;
-  canvasSize: { width: number; height: number };
-  editingElement: string | null;
-  editingText: string;
-  textInputRef: React.RefObject<HTMLTextAreaElement | null>;
-  fileInputRef: React.RefObject<HTMLInputElement | null>;
-  currentImageElementRef: React.RefObject<string | null>;
-  onElementDoubleClick: (element: CanvasElement) => void;
-  onSaveTextEdit: () => void;
-  onCancelTextEdit: () => void;
-  onTextEditKeyDown: (e: React.KeyboardEvent) => void;
-  onTextChange: (value: string) => void;
-  onImageUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
-}> = ({ 
-  selectedPage, 
-  selectedAlbum, 
-  canvasSize, 
-  editingElement, 
-  editingText, 
-  textInputRef, 
-  fileInputRef,
-  currentImageElementRef,
-  onElementDoubleClick,
-  onSaveTextEdit,
-  onCancelTextEdit,
-  onTextEditKeyDown,
-  onTextChange,
-  onImageUpload
-}) => {
-  const { updateElement, getElementById } = useCanvas();
-  
-  // 处理图片上传
-  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    
-    // 先调用父组件的处理函数来重置文件输入
-    onImageUpload(event);
-    
-    // 检查是否有文件和当前元素ID
-    if (!file || !file.type.startsWith('image/') || !currentImageElementRef.current) {
-      console.log('上传被取消：', { file: !!file, isImage: file?.type.startsWith('image/'), elementId: currentImageElementRef.current });
-      return;
-    }
-    
-    // 保存当前元素ID
-    const targetElementId = currentImageElementRef.current;
-    
-    try {
-      console.log('开始上传图片:', file.name, '用于元素:', targetElementId);
-      
-      // 调用后台图片上传 API
-      const result = await uploadImage(file);
-      console.log('图片上传成功:', result);
-      
-      // 使用返回的图片URL更新元素
-      const imageUrl = result.image.url; // 使用短链接URL
-      updateElement(targetElementId, { 
-        src: imageUrl,
-        alt: result.image.originalName 
-      });
-      console.log('图片元素已更新:', targetElementId, imageUrl);
-      
-    } catch (error) {
-      console.error('图片上传失败:', error);
-      alert('图片上传失败: ' + (error instanceof Error ? error.message : '未知错误'));
-    } finally {
-      // 清理引用
-      currentImageElementRef.current = null;
-    }
-  };
-  
-  // 保存文本编辑
-  const handleSaveTextEdit = () => {
-    if (editingElement) {
-      updateElement(editingElement, { content: editingText });
-      onSaveTextEdit();
-    }
-  };
-  
-  return (
-    <>
-      <div className="flex-1 p-6 overflow-auto bg-gray-200 rounded-b-lg">
-        <div className="flex justify-center">
-          <DragDropCanvas 
-            className=""
-            onElementDoubleClick={onElementDoubleClick}
-          />
-        </div>
-      </div>
-      
-      {/* 文本编辑弹窗 */}
-      {editingElement && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-96 max-w-90vw">
-            <h3 className="text-lg font-semibold mb-4">编辑文本</h3>
-            <textarea
-              ref={textInputRef}
-              value={editingText}
-              onChange={(e) => onTextChange(e.target.value)}
-              onKeyDown={onTextEditKeyDown}
-              className="w-full h-32 p-3 border border-gray-300 rounded-md resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="输入文本内容..."
-            />
-            <div className="flex justify-end space-x-3 mt-4">
-              <button
-                onClick={onCancelTextEdit}
-                className="px-4 py-2 text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
-              >
-                取消
-              </button>
-              <button
-                onClick={handleSaveTextEdit}
-                className="px-4 py-2 text-white bg-blue-500 rounded-md hover:bg-blue-600 transition-colors"
-              >
-                保存
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* 隐藏的文件输入 */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        onChange={handleImageUpload}
-        className="hidden"
-      />
-    </>
-  );
-};
-
 // 主页面内容组件 - 在CanvasProvider内部，可以访问canvas context
 const HomePageContent: React.FC = () => {
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
@@ -208,7 +72,7 @@ const HomePageContent: React.FC = () => {
   const currentImageElementRef = useRef<string | null>(null);
   
   // 获取画布状态和操作函数
-  const { toggleGrid, toggleSnapToGrid, setGridSize, state, setCurrentPageId, loadCanvasData, saveStatus, forceSave, clearSaveError } = useCanvas();
+  const { toggleGrid, toggleSnapToGrid, setGridSize, state } = useCanvas();
 
   // 加载相册数据
   const loadAlbums = async () => {
@@ -227,31 +91,10 @@ const HomePageContent: React.FC = () => {
   const handleAlbumSelect = (album: Album) => {
     setSelectedAlbum(album);
     setSelectedPage(null); // 切换相册时清空页面选择
-    setCurrentPageId(null); // 清空当前页面ID
   };
 
-  const handlePageSelect = async (page: Page) => {
+  const handlePageSelect = (page: Page) => {
     setSelectedPage(page);
-    
-    // 设置当前页面ID
-    setCurrentPageId(page.id);
-    
-    try {
-      // 加载页面的画布数据
-      console.log('加载页面画布数据:', page.id);
-      const canvasData = await pagesAPI.getCanvas(page.id);
-      loadCanvasData(canvasData);
-      console.log('画布数据加载成功:', canvasData);
-    } catch (error) {
-      console.error('加载画布数据失败:', error);
-      // 如果加载失败，初始化为空画布
-      loadCanvasData({
-        canvasSize: { width: 800, height: 600 },
-        elements: [],
-        version: 1,
-        lastModified: new Date().toISOString()
-      });
-    }
   };
 
   const handleCreatePage = async (albumId: number) => {
@@ -367,7 +210,7 @@ const HomePageContent: React.FC = () => {
       event.target.value = '';
     }
   };
-  
+
   // 保存文本编辑
   const handleSaveTextEdit = () => {
     if (editingElement) {
@@ -394,6 +237,144 @@ const HomePageContent: React.FC = () => {
       handleCancelTextEdit();
     }
   };
+
+// 画布内容组件 - 在CanvasProvider内部，可以访问canvas context
+const CanvasContent: React.FC<{
+  selectedPage: Page | null;
+  selectedAlbum: Album | null;
+  canvasSize: { width: number; height: number };
+  editingElement: string | null;
+  editingText: string;
+  textInputRef: React.RefObject<HTMLTextAreaElement | null>;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
+  currentImageElementRef: React.RefObject<string | null>;
+  onElementDoubleClick: (element: CanvasElement) => void;
+  onSaveTextEdit: () => void;
+  onCancelTextEdit: () => void;
+  onTextEditKeyDown: (e: React.KeyboardEvent) => void;
+  onTextChange: (value: string) => void;
+  onImageUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
+}> = ({ 
+  selectedPage, 
+  selectedAlbum, 
+  canvasSize, 
+  editingElement, 
+  editingText, 
+  textInputRef, 
+  fileInputRef,
+  currentImageElementRef,
+  onElementDoubleClick,
+  onSaveTextEdit,
+  onCancelTextEdit,
+  onTextEditKeyDown,
+  onTextChange,
+  onImageUpload
+}) => {
+  const { updateElement, getElementById } = useCanvas();
+  
+  // 处理图片上传
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    
+    // 先调用父组件的处理函数来重置文件输入
+    onImageUpload(event);
+    
+    // 检查是否有文件和当前元素ID
+    if (!file || !file.type.startsWith('image/') || !currentImageElementRef.current) {
+      console.log('上传被取消：', { file: !!file, isImage: file?.type.startsWith('image/'), elementId: currentImageElementRef.current });
+      return;
+    }
+    
+    // 保存当前元素ID
+    const targetElementId = currentImageElementRef.current;
+    
+    try {
+      console.log('开始上传图片:', file.name, '用于元素:', targetElementId);
+      
+      // 调用后台图片上传 API
+      const result = await uploadImage(file);
+      console.log('图片上传成功:', result);
+      
+      // 使用返回的图片URL更新元素
+      const imageUrl = result.image.url; // 使用短链接URL
+      updateElement(targetElementId, { 
+        src: imageUrl,
+        alt: result.image.originalName 
+      });
+      console.log('图片元素已更新:', targetElementId, imageUrl);
+      
+    } catch (error) {
+      console.error('图片上传失败:', error);
+      alert('图片上传失败: ' + (error instanceof Error ? error.message : '未知错误'));
+    } finally {
+      // 清理引用
+      currentImageElementRef.current = null;
+    }
+  };
+  
+  // 保存文本编辑
+  const handleSaveTextEdit = () => {
+    if (editingElement) {
+      updateElement(editingElement, { content: editingText });
+      onSaveTextEdit();
+    }
+  };
+  
+  return (
+    <>
+      <div className="flex-1 p-6 overflow-auto bg-gray-50 rounded-b-lg">
+        <div className="flex justify-center">
+          <div className="bg-white p-8 rounded-lg shadow-lg">
+            <DragDropCanvas 
+              className="border-2 border-gray-300"
+              onElementDoubleClick={onElementDoubleClick}
+            />
+          </div>
+        </div>
+      </div>
+      
+      {/* 文本编辑弹窗 */}
+      {editingElement && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-96 max-w-90vw">
+            <h3 className="text-lg font-semibold mb-4">编辑文本</h3>
+            <textarea
+              ref={textInputRef}
+              value={editingText}
+              onChange={(e) => onTextChange(e.target.value)}
+              onKeyDown={onTextEditKeyDown}
+              className="w-full h-32 p-3 border border-gray-300 rounded-md resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="输入文本内容..."
+            />
+            <div className="flex justify-end space-x-3 mt-4">
+              <button
+                onClick={onCancelTextEdit}
+                className="px-4 py-2 text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleSaveTextEdit}
+                className="px-4 py-2 text-white bg-blue-500 rounded-md hover:bg-blue-600 transition-colors"
+              >
+                保存
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* 隐藏的文件输入 */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleImageUpload}
+        className="hidden"
+      />
+    </>
+  );
+};
 
   return (
     <div className="h-[calc(100vh-4rem)] w-screen bg-gray-100 flex gap-6 p-6 overflow-hidden">
@@ -551,7 +532,7 @@ const HomePageContent: React.FC = () => {
           </div>
 
           {/* 使用说明 */}
-          {/* <div className="p-4 border-t border-gray-200">
+          <div className="p-4 border-t border-gray-200">
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
               <h4 className="text-sm font-medium text-blue-800 mb-1">
                 使用说明
@@ -565,9 +546,10 @@ const HomePageContent: React.FC = () => {
                 <li>• 调整画布尺寸</li>
               </ul>
             </div>
-          </div> */}
+          </div>
         </div>
       </div>
+    </div>
   );
 };
 

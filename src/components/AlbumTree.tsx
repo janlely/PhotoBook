@@ -39,9 +39,6 @@ const AlbumTreeItem: React.FC<AlbumTreeItemProps> = ({
   onDeletePage,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [children, setChildren] = useState<Album[]>([]);
-
-  const hasChildren = album.children && album.children.length > 0;
 
   const handleToggle = () => {
     setIsExpanded(!isExpanded);
@@ -57,20 +54,6 @@ const AlbumTreeItem: React.FC<AlbumTreeItemProps> = ({
       setIsExpanded(true);
     }
   };
-
-  useEffect(() => {
-    if (isExpanded && hasChildren) {
-      const loadChildren = async () => {
-        try {
-          const albumDetail = await albumsAPI.getById(album.id);
-          setChildren(albumDetail.children || []);
-        } catch (error) {
-          console.error('加载子相册失败:', error);
-        }
-      };
-      loadChildren();
-    }
-  }, [isExpanded, hasChildren, album.id]);
 
   return (
     <div>
@@ -88,15 +71,13 @@ const AlbumTreeItem: React.FC<AlbumTreeItemProps> = ({
             handleToggle();
           }}
         >
-          {hasChildren ? (
+          {
             isExpanded ? (
               <ChevronDownIcon className="h-4 w-4" />
             ) : (
               <ChevronRightIcon className="h-4 w-4" />
             )
-          ) : (
-            <span className="w-4 h-4 inline-block" />
-          )}
+          }
         </button>
         <FolderIcon className="h-5 w-5 text-gray-400 mr-2" />
         <span className="text-sm flex-1">{album.title}</span>
@@ -150,26 +131,6 @@ const AlbumTreeItem: React.FC<AlbumTreeItemProps> = ({
             <PlusIcon className="h-4 w-4 text-gray-400 mr-2" />
             <span className="text-sm">新建页面</span>
           </div>
-          
-          {/* 子相册（如果有的话） */}
-          {hasChildren && (
-            <div>
-              {children.map((child) => (
-                <AlbumTreeItem
-                  key={child.id}
-                  album={child}
-                  level={level + 1}
-                  onAlbumSelect={onAlbumSelect}
-                  selectedAlbumId={selectedAlbumId}
-                  onRefresh={onRefresh}
-                  onPageSelect={onPageSelect}
-                  selectedPageId={selectedPageId}
-                  onCreatePage={onCreatePage}
-                  onDeletePage={onDeletePage}
-                />
-              ))}
-            </div>
-          )}
         </div>
       )}
     </div>

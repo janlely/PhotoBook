@@ -153,4 +153,89 @@ router.delete('/:id', authenticateToken, async (req: AuthRequest, res) => {
   }
 });
 
+// 更新页面画布数据
+router.put('/:id/canvas', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user?.userId;
+    const pageId = parseInt(req.params.id);
+    const { canvasSize, elements, version } = req.body;
+    
+    const page = await prisma.page.findFirst({
+      where: {
+        id: pageId,
+        album: {
+          userId
+        }
+      }
+    });
+    
+    if (!page) {
+      return res.status(404).json({ error: '页面不存在或无权限访问' });
+    }
+    
+    const canvasData = {
+      canvasSize,
+      elements,
+      version: version || 1,
+      lastModified: new Date().toISOString()
+    };
+    
+    const updatedPage = await prisma.page.update({
+      where: { id: pageId },
+      data: {
+        content: JSON.stringify(canvasData)
+      }
+    });
+    
+    res.json({ message: '画布数据保存成功', lastModified: canvasData.lastModified });
+  } catch (error) {
+    console.error('保存画布数据错误:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+});
+
+// 获取页面画布数据
+router.get('/:id/canvas', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user?.userId;
+    const pageId = parseInt(req.params.id);
+    
+    const page = await prisma.page.findFirst({
+      where: {
+        id: pageId,
+        album: {
+          userId
+        }
+      }
+    });
+    
+    if (!page) {
+      return res.status(404).json({ error: '页面不存在或无权限访问' });
+    }
+    
+    try {
+      const canvasData = page.content ? JSON.parse(page.content) : {
+        canvasSize: { width: 800, height: 600 },
+        elements: [],
+        version: 1,
+        lastModified: new Date().toISOString()
+      };
+      
+      res.json(canvasData);
+    } catch (parseError) {
+      console.error('解析画布数据错误:', parseError);
+      // 如果内容解析失败，返回默认数据
+      res.json({
+        canvasSize: { width: 800, height: 600 },
+        elements: [],
+        version: 1,
+        lastModified: new Date().toISOString()
+      });
+    }
+  } catch (error) {
+    console.error('获取画布数据错误:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+});
+
 export default router;
