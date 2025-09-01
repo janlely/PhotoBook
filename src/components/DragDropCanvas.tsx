@@ -514,7 +514,7 @@ const DragDropCanvas: React.FC<DragDropCanvasProps> = ({
         width: displaySize.width * state.displayScale,
         height: displaySize.height * state.displayScale,
         transform: `scale(${state.zoom}) translate(${state.panOffset.x}px, ${state.panOffset.y}px)`,
-        transformOrigin: '0 0',
+        transformOrigin: 'center center',
         cursor: state.activeTool === 'select' ? 'default' : 'crosshair',
       }}
       tabIndex={0}
