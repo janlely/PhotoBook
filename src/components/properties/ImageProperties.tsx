@@ -170,6 +170,99 @@ const ImageProperties: React.FC<ImagePropertiesProps> = ({ element }) => {
           </div>
         </div>
 
+        {/* 边框设置 */}
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">
+            边框设置
+          </label>
+          
+          {/* 边框宽度 */}
+          <div className="flex items-center space-x-2 mb-2">
+            <label className="text-xs text-gray-600 w-12">宽度:</label>
+            <input
+              type="text"
+              value={(element.border?.width || 0).toString()}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value === '' || /^\d+$/.test(value)) {
+                  const numValue = value === '' ? 0 : parseInt(value, 10);
+                  if (numValue >= 0 && numValue <= 20) {
+                    updateElement(element.id, {
+                      border: {
+                        width: numValue,
+                        color: element.border?.color || '#000000',
+                        radius: element.border?.radius || 0,
+                      }
+                    });
+                  }
+                }
+              }}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === 'Enter') {
+                  (e.target as HTMLInputElement).blur();
+                }
+              }}
+              className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="0"
+            />
+            <span className="text-xs text-gray-500">px</span>
+          </div>
+          
+          {/* 边框颜色 */}
+          <div className="flex items-center space-x-2 mb-2">
+            <label className="text-xs text-gray-600 w-12">颜色:</label>
+            <input
+              type="color"
+              value={element.border?.color || '#000000'}
+              onChange={(e) => updateElement(element.id, {
+                border: {
+                  width: element.border?.width || 0,
+                  color: e.target.value,
+                  radius: element.border?.radius || 0,
+                }
+              })}
+              className="w-8 h-6 border border-gray-300 rounded cursor-pointer"
+            />
+            <input
+              type="text"
+              value={element.border?.color || '#000000'}
+              onChange={(e) => updateElement(element.id, {
+                border: {
+                  width: element.border?.width || 0,
+                  color: e.target.value,
+                  radius: element.border?.radius || 0,
+                }
+              })}
+              onKeyDown={(e) => e.stopPropagation()}
+              className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="#000000"
+            />
+          </div>
+          
+          {/* 圆角半径 */}
+          <div className="flex items-center space-x-2">
+            <label className="text-xs text-gray-600 w-12">圆角:</label>
+            <input
+              type="range"
+              min="0"
+              max="50"
+              value={element.border?.radius || 0}
+              onChange={(e) => updateElement(element.id, {
+                border: {
+                  width: element.border?.width || 0,
+                  color: element.border?.color || '#000000',
+                  radius: Number(e.target.value),
+                }
+              })}
+              className="flex-1"
+            />
+            <span className="text-xs text-gray-500 w-8">
+              {element.border?.radius || 0}px
+            </span>
+          </div>
+        </div>
+
         {/* 透明度 */}
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">

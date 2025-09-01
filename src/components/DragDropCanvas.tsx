@@ -29,7 +29,11 @@ const DragDropCanvas: React.FC<DragDropCanvasProps> = ({
     deleteSelectedElements,
     undo,
     redo,
+    getDisplaySize,
   } = useCanvas();
+
+  // 获取显示尺寸
+  const displaySize = getDisplaySize();
 
   // Convert screen coordinates to canvas coordinates
   const screenToCanvas = useCallback((screenX: number, screenY: number): Point => {
@@ -37,18 +41,18 @@ const DragDropCanvas: React.FC<DragDropCanvasProps> = ({
     if (!container) return { x: 0, y: 0 };
 
     const rect = container.getBoundingClientRect();
-    const x = (screenX - rect.left - state.panOffset.x) / state.zoom;
-    const y = (screenY - rect.top - state.panOffset.y) / state.zoom;
+    const x = (screenX - rect.left - state.panOffset.x) / (state.zoom * state.displayScale);
+    const y = (screenY - rect.top - state.panOffset.y) / (state.zoom * state.displayScale);
     
     return { x, y };
-  }, [state.zoom, state.panOffset]);
+  }, [state.zoom, state.panOffset, state.displayScale]);
 
   // Convert canvas coordinates to screen coordinates
   const canvasToScreen = useCallback((canvasX: number, canvasY: number): Point => {
-    const x = canvasX * state.zoom + state.panOffset.x;
-    const y = canvasY * state.zoom + state.panOffset.y;
+    const x = canvasX * state.zoom * state.displayScale + state.panOffset.x;
+    const y = canvasY * state.zoom * state.displayScale + state.panOffset.y;
     return { x, y };
-  }, [state.zoom, state.panOffset]);
+  }, [state.zoom, state.panOffset, state.displayScale]);
 
   // Handle tool drop (creating new elements)
   const handleToolDrop = useCallback((item: ToolDragItem, clientOffset: Point) => {
@@ -505,8 +509,8 @@ const DragDropCanvas: React.FC<DragDropCanvasProps> = ({
           : ''
       } ${className || ''} focus:outline-none`}
       style={{
-        width: state.canvasSize.width * state.zoom,
-        height: state.canvasSize.height * state.zoom,
+        width: displaySize.width * state.zoom,
+        height: displaySize.height * state.zoom,
         transform: `translate(${state.panOffset.x}px, ${state.panOffset.y}px)`,
         transformOrigin: '0 0',
         cursor: state.activeTool === 'select' ? 'default' : 'crosshair',
@@ -535,7 +539,7 @@ const DragDropCanvas: React.FC<DragDropCanvasProps> = ({
               linear-gradient(to right, #ddd 1px, transparent 1px),
               linear-gradient(to bottom, #ddd 1px, transparent 1px)
             `,
-            backgroundSize: `${state.gridSize * state.zoom}px ${state.gridSize * state.zoom}px`,
+            backgroundSize: `${state.gridSize * state.zoom * state.displayScale}px ${state.gridSize * state.zoom * state.displayScale}px`,
           }}
         />
       )}

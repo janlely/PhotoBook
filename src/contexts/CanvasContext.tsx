@@ -42,6 +42,11 @@ export interface ImageElement extends BaseElement {
   alt?: string;
   opacity: number;
   aspectRatioLocked?: boolean; // 添加宽高比锁定属性
+  border?: {
+    width: number;
+    color: string;
+    radius: number; // 圆角半径，像素值
+  };
 }
 
 export interface TextElement extends BaseElement {
@@ -54,6 +59,11 @@ export interface TextElement extends BaseElement {
   color: string;
   textAlign: 'left' | 'center' | 'right' | 'justify';
   lineHeight: number;
+  textStroke?: {
+    enabled: boolean;
+    width: number;
+    color: string;
+  };
 }
 
 export interface ShapeElement extends BaseElement {
@@ -73,7 +83,9 @@ export interface CanvasState {
   elements: CanvasElement[];
   selectedElementIds: string[];
   activeTool: Tool;
-  canvasSize: Size;
+  canvasSize: Size; // 实际尺寸，用于导出和保存
+  displayScale: number; // 显示缩放比例，用于编辑时的适配显示
+  isPreviewMode: boolean; // 预览模式，用于导出和预览
   zoom: number;
   panOffset: Point;
   history: CanvasElement[][];
@@ -118,6 +130,10 @@ interface CanvasContextType {
   
   // Canvas operations
   setCanvasSize: (size: Size) => void;
+  setDisplayScale: (scale: number) => void;
+  calculateOptimalDisplayScale: (containerWidth: number, containerHeight: number) => number;
+  getDisplaySize: () => Size; // 获取显示尺寸
+  getActualSize: () => Size; // 获取实际尺寸
   setZoom: (zoom: number) => void;
   setPanOffset: (offset: Point) => void;
   
@@ -141,6 +157,11 @@ interface CanvasContextType {
   forceSave: () => void;
   clearSaveError: () => void;
   
+  // Preview and export utilities
+  setPreviewMode: (enabled: boolean) => void;
+  exportCanvasAsImage: (format: 'png' | 'jpeg', quality?: number) => Promise<Blob>;
+  exportCanvasToPDF: () => Promise<Blob>;
+  
   // Utility functions
   getElementById: (id: string) => CanvasElement | undefined;
   getSelectedElements: () => CanvasElement[];
@@ -163,6 +184,8 @@ const initialState: CanvasState = {
   selectedElementIds: [],
   activeTool: 'select',
   canvasSize: { width: 800, height: 600 },
+  displayScale: 1, // 初始显示缩放比例
+  isPreviewMode: false, // 初始为编辑模式
   zoom: 1,
   panOffset: { x: 0, y: 0 },
   history: [[]],
@@ -471,7 +494,67 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
     setState(prev => ({
       ...prev,
       canvasSize: size,
+      // 重置显示缩放比例为1，等待容器调用calculateOptimalDisplayScale
+      displayScale: 1,
     }));
+  }, []);
+
+  const setDisplayScale = useCallback((scale: number) => {
+    setState(prev => ({
+      ...prev,
+      displayScale: Math.max(0.1, Math.min(2, scale)), // 限制在 0.1 到 2 之间
+    }));
+  }, []);
+
+  // 计算最优显示缩放比例，让画布适合在容器中显示
+  const calculateOptimalDisplayScale = useCallback((containerWidth: number, containerHeight: number) => {
+    const canvasWidth = state.canvasSize.width;
+    const canvasHeight = state.canvasSize.height;
+    
+    // 留出一些边距空间，避免画布紧贴边缘
+    const padding = 80;
+    const availableWidth = containerWidth - padding;
+    const availableHeight = containerHeight - padding;
+    
+    // 计算按宽度和高度缩放的比例
+    const scaleByWidth = availableWidth / canvasWidth;
+    const scaleByHeight = availableHeight / canvasHeight;
+    
+    // 取较小的缩放比例，确保画布完全显示在容器内
+    const optimalScale = Math.min(scaleByWidth, scaleByHeight);
+    
+    // 限制最小和最大缩放比例
+    return Math.max(0.1, Math.min(1.5, optimalScale));
+  }, [state.canvasSize]);
+
+  // 获取显示尺寸（缩放后的尺寸）
+  const getDisplaySize = useCallback(() => ({
+    width: state.canvasSize.width * state.displayScale,
+    height: state.canvasSize.height * state.displayScale,
+  }), [state.canvasSize, state.displayScale]);
+
+  // 获取实际尺寸（用于导出和PDF生成）
+  const getActualSize = useCallback(() => state.canvasSize, [state.canvasSize]);
+
+  // 预览和导出相关函数
+  const setPreviewMode = useCallback((enabled: boolean) => {
+    setState(prev => ({
+      ...prev,
+      isPreviewMode: enabled,
+      displayScale: enabled ? 1 : prev.displayScale, // 预览模式使用实际尺寸
+    }));
+  }, []);
+
+  const exportCanvasAsImage = useCallback(async (format: 'png' | 'jpeg', quality = 0.9): Promise<Blob> => {
+    // 这里将来实现导出为图片的逻辑
+    // 目前返回一个空的 Blob 作为占位符
+    return new Blob([], { type: `image/${format}` });
+  }, []);
+
+  const exportCanvasToPDF = useCallback(async (): Promise<Blob> => {
+    // 这里将来实现导出为PDF的逻辑
+    // 目前返回一个空的 Blob 作为占位符
+    return new Blob([], { type: 'application/pdf' });
   }, []);
 
   const setZoom = useCallback((zoom: number) => {
@@ -623,6 +706,10 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
     moveElementBackward,
     setActiveTool,
     setCanvasSize,
+    setDisplayScale,
+    calculateOptimalDisplayScale,
+    getDisplaySize,
+    getActualSize,
     setZoom,
     setPanOffset,
     undo,
@@ -637,6 +724,9 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
     saveStatus,
     forceSave,
     clearSaveError: clearError,
+    setPreviewMode,
+    exportCanvasAsImage,
+    exportCanvasToPDF,
     getElementById,
     getSelectedElements,
     exportCanvasData,

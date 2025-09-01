@@ -28,6 +28,9 @@ const DraggableElement: React.FC<DraggableElementProps> = ({
   const editableRef = useRef<HTMLTextAreaElement>(null);
   const { state, resizeElement, updateElement } = useCanvas();
   
+  // 计算元素在显示尺度下的缩放比例
+  const displayScale = state.displayScale;
+  
   // 用于在拖动过程中实时更新元素位置的状态
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   
@@ -91,13 +94,13 @@ const DraggableElement: React.FC<DraggableElementProps> = ({
   // 当拖动过程中位置发生变化时，更新本地偏移量
   useEffect(() => {
     if (isDragging && dragItem?.id === element.id && differenceFromInitialOffset) {
-      // 将屏幕坐标差值转换为画布坐标差值（考虑缩放）
-      const canvasDeltaX = differenceFromInitialOffset.x / state.zoom;
-      const canvasDeltaY = differenceFromInitialOffset.y / state.zoom;
+      // 将屏幕坐标差值转换为画布坐标差值（考虑缩放和显示缩放）
+      const canvasDeltaX = differenceFromInitialOffset.x / (state.zoom * displayScale);
+      const canvasDeltaY = differenceFromInitialOffset.y / (state.zoom * displayScale);
       
       setDragOffset({ x: canvasDeltaX, y: canvasDeltaY });
     }
-  }, [isDragging, dragItem, differenceFromInitialOffset, element.id, state.zoom]);
+  }, [isDragging, dragItem, differenceFromInitialOffset, element.id, state.zoom, displayScale]);
 
   // Use empty image as drag preview (we'll create custom preview later)
   useEffect(() => {
@@ -181,8 +184,8 @@ const DraggableElement: React.FC<DraggableElementProps> = ({
     const handleMouseMove = (e: MouseEvent) => {
       if (!direction) return;
       
-      const deltaX = (e.clientX - startPos.x) / state.zoom;
-      const deltaY = (e.clientY - startPos.y) / state.zoom;
+      const deltaX = (e.clientX - startPos.x) / (state.zoom * displayScale);
+      const deltaY = (e.clientY - startPos.y) / (state.zoom * displayScale);
       
       console.log('📐 调整大小中:', {
         direction,
@@ -280,6 +283,12 @@ const DraggableElement: React.FC<DraggableElementProps> = ({
           break;
       }
       
+      // 对所有尺寸进行取整处理
+      newTransform.width = Math.round(newTransform.width);
+      newTransform.height = Math.round(newTransform.height);
+      newTransform.x = Math.round(newTransform.x);
+      newTransform.y = Math.round(newTransform.y);
+      
       console.log('📏 新的变换属性:', {
         direction,
         oldTransform: startTransform,
@@ -371,7 +380,7 @@ const DraggableElement: React.FC<DraggableElementProps> = ({
     switch (element.type) {
       case 'text':
         const textElement = element as TextElement;
-        const textStyle = {
+        const baseTextStyle = {
           fontSize: `${textElement.fontSize}px`,
           fontFamily: textElement.fontFamily,
           fontWeight: textElement.fontWeight,
@@ -380,6 +389,13 @@ const DraggableElement: React.FC<DraggableElementProps> = ({
           textAlign: textElement.textAlign,
           lineHeight: textElement.lineHeight,
         };
+        
+        // 添加文字描边效果
+        const textStyle = textElement.textStroke?.enabled ? {
+          ...baseTextStyle,
+          WebkitTextStroke: `${textElement.textStroke.width}px ${textElement.textStroke.color}`,
+          textShadow: `0 0 0 ${textElement.textStroke.color}`, // 备用方案
+        } : baseTextStyle;
         
         return (
           <div className="w-full h-full flex items-center relative">
@@ -422,12 +438,20 @@ const DraggableElement: React.FC<DraggableElementProps> = ({
 
       case 'image':
         const imageElement = element as ImageElement;
+        const borderStyle = imageElement.border ? {
+          border: `${imageElement.border.width}px solid ${imageElement.border.color}`,
+          borderRadius: `${imageElement.border.radius}px`,
+        } : {};
+        
         return (
           <img
             src={imageElement.src}
             alt={imageElement.alt || 'Image'}
             className="w-full h-full object-cover"
-            style={{ opacity: imageElement.opacity }}
+            style={{ 
+              opacity: imageElement.opacity,
+              ...borderStyle
+            }}
             draggable={false}
           />
         );

@@ -8,7 +8,7 @@ import type { Album, Page } from '../api/albums';
 import { albumsAPI } from '../api/albums';
 import { pagesAPI } from '../api/pages';
 import { uploadImage } from '../api/upload';
-import { DocumentTextIcon, PhotoIcon, Square3Stack3DIcon } from '@heroicons/react/24/outline';
+import { DocumentTextIcon, PhotoIcon } from '@heroicons/react/24/outline';
 import { ItemTypes } from '../types/dnd';
 import type { ToolDragItem } from '../types/dnd';
 import type { CanvasElement, ImageElement } from '../contexts/CanvasContext';
@@ -59,7 +59,6 @@ const DraggableToolElement: React.FC<{
 const CanvasContent: React.FC<{
   selectedPage: Page | null;
   selectedAlbum: Album | null;
-  canvasSize: { width: number; height: number };
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   currentImageElementRef: React.RefObject<string | null>;
   onElementDoubleClick: (element: CanvasElement) => void;
@@ -67,13 +66,59 @@ const CanvasContent: React.FC<{
 }> = ({ 
   selectedPage, 
   selectedAlbum, 
-  canvasSize, 
   fileInputRef,
   currentImageElementRef,
   onElementDoubleClick,
   onImageUpload
 }) => {
-  const { updateElement, getElementById } = useCanvas();
+  const { updateElement, getElementById, state, calculateOptimalDisplayScale, setDisplayScale, setZoom, toggleGrid } = useCanvas();
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
+  
+  // 自动计算和设置显示缩放比例
+  useEffect(() => {
+    const updateDisplayScale = () => {
+      if (canvasContainerRef.current) {
+        const container = canvasContainerRef.current;
+        const containerWidth = container.clientWidth;
+        const containerHeight = container.clientHeight;
+        
+        if (containerWidth > 0 && containerHeight > 0) {
+          const optimalScale = calculateOptimalDisplayScale(containerWidth, containerHeight);
+          setDisplayScale(optimalScale);
+          console.log('📈 自动计算显示缩放比例:', {
+            containerSize: { width: containerWidth, height: containerHeight },
+            canvasSize: state.canvasSize,
+            optimalScale,
+          });
+        }
+      }
+    };
+    
+    // 初始计算
+    updateDisplayScale();
+    
+    // 窗口尺寸变化时重新计算
+    const handleResize = () => {
+      updateDisplayScale();
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [state.canvasSize, calculateOptimalDisplayScale, setDisplayScale]);
+  
+  // 画布尺寸变化时重新计算显示缩放
+  useEffect(() => {
+    if (canvasContainerRef.current) {
+      const container = canvasContainerRef.current;
+      const containerWidth = container.clientWidth;
+      const containerHeight = container.clientHeight;
+      
+      if (containerWidth > 0 && containerHeight > 0) {
+        const optimalScale = calculateOptimalDisplayScale(containerWidth, containerHeight);
+        setDisplayScale(optimalScale);
+      }
+    }
+  }, [state.canvasSize, calculateOptimalDisplayScale, setDisplayScale]);
   
   // 处理图片上传
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -119,16 +164,127 @@ const CanvasContent: React.FC<{
   
   return (
     <>
-      <div className="flex-1 p-6 overflow-auto bg-gray-200 rounded-b-lg">
-        <div className="flex justify-center">
+      {/* 画布头部 - 包含缩放控件 */}
+      <div className="border-b border-gray-200 px-6 py-3 bg-white">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">
+              {selectedPage ? selectedPage.title : '画布编辑器'}
+            </h2>
+            <p className="text-sm text-gray-600">
+              {selectedPage ? `相册: ${selectedAlbum?.title}` : '请选择页面开始编辑'}
+            </p>
+          </div>
+          
+          {/* 缩放控件 */}
+          <div className="flex items-center space-x-4">
+            {/* 实际尺寸和显示缩放信息 */}
+            <div className="flex items-center space-x-4 text-sm text-gray-600">
+              <span>实际尺寸: {state.canvasSize.width} × {state.canvasSize.height}</span>
+              <span>显示缩放: {Math.round(state.displayScale * 100)}%</span>
+            </div>
+            
+            {/* 手动缩放控件 */}
+            <div className="flex items-center space-x-2 border border-gray-300 rounded-md px-3 py-1">
+              <button
+                onClick={() => setZoom(Math.max(0.1, state.zoom - 0.1))}
+                className="w-6 h-6 flex items-center justify-center text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded"
+                title="缩小"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                </svg>
+              </button>
+              
+              <span className="text-sm text-gray-700 min-w-[3rem] text-center">
+                {Math.round(state.zoom * 100)}%
+              </span>
+              
+              <button
+                onClick={() => setZoom(Math.min(3, state.zoom + 0.1))}
+                className="w-6 h-6 flex items-center justify-center text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded"
+                title="放大"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+              </button>
+              
+              {/* 重置缩放按钮 */}
+              <div className="border-l border-gray-300 pl-2 ml-2">
+                <button
+                  onClick={() => setZoom(1)}
+                  className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 hover:bg-gray-100 rounded"
+                  title="重置缩放"
+                >
+                  重置
+                </button>
+              </div>
+            </div>
+            
+            {/* 自适应缩放按钮 */}
+            <button
+              onClick={() => {
+                if (canvasContainerRef.current) {
+                  const container = canvasContainerRef.current;
+                  const containerWidth = container.clientWidth;
+                  const containerHeight = container.clientHeight;
+                  const optimalScale = calculateOptimalDisplayScale(containerWidth, containerHeight);
+                  setDisplayScale(optimalScale);
+                }
+              }}
+              className="px-3 py-1 text-sm text-gray-600 hover:text-gray-900 border border-gray-300 rounded-md hover:bg-gray-50"
+              title="自适应显示"
+            >
+              自适应
+            </button>
+            
+            {/* 网格显隐开关 */}
+            <button
+              onClick={toggleGrid}
+              className={`flex items-center px-3 py-1 rounded-md border transition-colors ${
+                state.isGridVisible
+                  ? 'bg-blue-50 border-blue-300 text-blue-600'
+                  : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+              }`}
+              title={state.isGridVisible ? '隐藏网格' : '显示网格'}
+            >
+              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+              </svg>
+              <span className="text-sm">
+                网格
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      {/* 画布区域 - 固定大小，支持滚动 */}
+      <div 
+        ref={canvasContainerRef}
+        className="flex-1 bg-gray-600 overflow-auto"
+        style={{
+          minHeight: '400px',
+          maxHeight: 'calc(100vh - 200px)', // 固定最大高度
+        }}
+      >
+        <div 
+          className="p-6 flex justify-center items-center"
+          style={{
+            minWidth: '100%',
+            minHeight: '100%',
+            width: 'max-content',
+            height: 'max-content',
+          }}
+        >
+          {/* 画布 */}
           <DragDropCanvas 
-            className=""
+            className="shadow-lg"
             onElementDoubleClick={onElementDoubleClick}
           />
         </div>
       </div>
-      
-
       
       {/* 隐藏的文件输入 */}
       <input
@@ -146,7 +302,6 @@ const CanvasContent: React.FC<{
 const HomePageContent: React.FC = () => {
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
   const [selectedPage, setSelectedPage] = useState<Page | null>(null);
-  const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
   const [albums, setAlbums] = useState<Album[]>([]);
   
   // 用于图片上传的文件输入引用
@@ -155,7 +310,7 @@ const HomePageContent: React.FC = () => {
   const currentImageElementRef = useRef<string | null>(null);
   
   // 获取画布状态和操作函数
-  const { toggleGrid, toggleSnapToGrid, setGridSize, state, setCurrentPageId, loadCanvasData, saveStatus, forceSave, clearSaveError } = useCanvas();
+  const { toggleGrid, toggleSnapToGrid, setGridSize, state, setCurrentPageId, loadCanvasData, saveStatus, forceSave, clearSaveError, setCanvasSize } = useCanvas();
 
   // 加载相册数据
   const loadAlbums = async () => {
@@ -328,49 +483,9 @@ const HomePageContent: React.FC = () => {
 
         {/* 中间画布区域 - 3/5 比例，主要工作区域 */}
         <div className="flex-[3] h-full bg-white border border-gray-200 rounded-lg shadow-sm flex flex-col">
-          <div className="border-b border-gray-200 px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-xl font-semibold text-gray-900">
-                  {selectedPage ? selectedPage.title : '画布编辑器'}
-                </h1>
-                <p className="text-sm text-gray-600">
-                  {selectedPage ? `相册: ${selectedAlbum?.title}` : '请选择页面开始编辑'}
-                  {/* {selectedPage && state.selectedElementIds.length === 0 && (
-                    <span className="block mt-1 text-xs text-gray-500">
-                      💡 点击画布空白处可隐藏元素边框 | 按 Esc 键快速取消选择
-                    </span>
-                  )} */}
-                </p>
-              </div>
-              <div className="flex items-center space-x-4">
-                {/* 网格显隐开关 */}
-                <button
-                  onClick={toggleGrid}
-                  className={`flex items-center px-3 py-2 rounded-lg border transition-colors ${
-                    state.isGridVisible
-                      ? 'bg-blue-50 border-blue-300 text-blue-600'
-                      : 'border-gray-300 text-gray-600 hover:bg-gray-50'
-                  }`}
-                  title={state.isGridVisible ? '隐藏网格' : '显示网格'}
-                >
-                  <Square3Stack3DIcon className="w-4 h-4 mr-2" />
-                  <span className="text-sm">
-                    {state.isGridVisible ? '隐藏网格' : '显示网格'}
-                  </span>
-                </button>
-                
-                <div className="text-sm text-gray-500">
-                  画布尺寸: {canvasSize.width} × {canvasSize.height}
-                </div>
-              </div>
-            </div>
-          </div>
-          
           <CanvasContent
             selectedPage={selectedPage}
             selectedAlbum={selectedAlbum}
-            canvasSize={canvasSize}
             fileInputRef={fileInputRef}
             currentImageElementRef={currentImageElementRef}
             onElementDoubleClick={handleElementDoubleClick}
@@ -389,17 +504,27 @@ const HomePageContent: React.FC = () => {
                   尺寸选择
                 </label>
                 <select
-                  value={`${canvasSize.width}x${canvasSize.height}`}
+                  value={`${state.canvasSize.width}x${state.canvasSize.height}`}
                   onChange={(e) => {
                     const [width, height] = e.target.value.split('x').map(Number);
                     setCanvasSize({ width, height });
                   }}
                   className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
                 >
-                  <option value="800x600">800 × 600</option>
-                  <option value="1024x768">1024 × 768</option>
-                  <option value="1200x900">1200 × 900</option>
-                  <option value="1600x1200">1600 × 1200</option>
+                  <option value="1240x1754">A4竖版 (1240 × 1754)</option>
+                  <option value="1754x1240">A4横版 (1754 × 1240)</option>
+                  <option value="1169x1654">A5竖版 (1169 × 1654)</option>
+                  <option value="1654x1169">A5横版 (1654 × 1169)</option>
+                  <option value="2480x3508">A4高分辨率竖版 (2480 × 3508)</option>
+                  <option value="3508x2480">A4高分辨率横版 (3508 × 2480)</option>
+                  <option value="1200x1200">正方形中 (1200 × 1200)</option>
+                  <option value="1500x1500">正方形大 (1500 × 1500)</option>
+                  <option value="800x800">正方形小 (800 × 800)</option>
+                  <option value="1920x1080">横屏16:9 (1920 × 1080)</option>
+                  <option value="1080x1920">竖屏9:16 (1080 × 1920)</option>
+                  <option value="1500x2100">传统相册竖版 (1500 × 2100)</option>
+                  <option value="2100x1500">传统相册横版 (2100 × 1500)</option>
+                  <option value="800x600">自定义小尺寸 (800 × 600)</option>
                 </select>
               </div>
               
@@ -493,4 +618,4 @@ const HomePage: React.FC = () => {
   );
 };
 
-export default HomePage;
+export default HomePage
