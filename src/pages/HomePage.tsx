@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { CanvasProvider, useCanvas } from '../contexts/CanvasContext';
 import { useDrag } from 'react-dnd';
+import { ChevronDownIcon } from '@heroicons/react/20/solid';
 import AlbumTree from '../components/AlbumTree';
 import DragDropCanvas from '../components/DragDropCanvas';
 import PropertiesPanel from '../components/PropertiesPanel';
@@ -13,7 +14,107 @@ import { ItemTypes } from '../types/dnd';
 import type { ToolDragItem } from '../types/dnd';
 import type { CanvasElement, ImageElement } from '../contexts/CanvasContext';
 
-// 可拖拽工具元素组件
+// 自定义缩放控件组件
+const ZoomControl: React.FC<{
+  value: number;
+  onChange: (value: number) => void;
+}> = ({ value, onChange }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [inputValue, setInputValue] = useState(Math.round(value * 100).toString());
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const zoomOptions = [25, 50, 75, 100, 125, 150, 200, 300];
+
+  // 同步外部值变化到输入框
+  useEffect(() => {
+    setInputValue(Math.round(value * 100).toString());
+  }, [value]);
+
+  // 点击外部关闭下拉菜单
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isOpen]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value.replace('%', '');
+    setInputValue(newValue);
+  };
+
+  const handleInputBlur = () => {
+    const numValue = parseInt(inputValue, 10);
+    if (!isNaN(numValue) && numValue >= 10 && numValue <= 500) {
+      onChange(numValue / 100);
+    } else {
+      // 恢复到当前值
+      setInputValue(Math.round(value * 100).toString());
+    }
+  };
+
+  const handleInputKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleInputBlur();
+      inputRef.current?.blur();
+    }
+  };
+
+  const handleOptionSelect = (optionValue: number) => {
+    onChange(optionValue / 100);
+    setIsOpen(false);
+  };
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <div className="flex border border-gray-300 rounded-md overflow-hidden">
+        {/* 输入区域 */}
+        <input
+          ref={inputRef}
+          type="text"
+          value={inputValue + '%'}
+          onChange={handleInputChange}
+          onBlur={handleInputBlur}
+          onKeyDown={handleInputKeyDown}
+          className="w-16 px-2 py-1 text-sm text-center border-none bg-white"
+          style={{ outline: 'none', boxShadow: 'none' }}
+        />
+        {/* 下拉箭头按钮 */}
+        <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          className="px-1 bg-white hover:bg-gray-50 border-l border-gray-300 flex items-center justify-center"
+        >
+          <ChevronDownIcon className="h-3 w-3 text-gray-400" />
+        </button>
+      </div>
+      
+      {/* 下拉选项 */}
+      {isOpen && (
+        <div className="absolute z-10 mt-1 w-full bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5">
+          <div className="py-1">
+            {zoomOptions.map((option) => (
+              <button
+                key={option}
+                onClick={() => handleOptionSelect(option)}
+                className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 hover:text-blue-600"
+              >
+                {option}%
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 const DraggableToolElement: React.FC<{
   type: string;
   toolType: 'image' | 'text';
@@ -74,51 +175,31 @@ const CanvasContent: React.FC<{
   const { updateElement, getElementById, state, calculateOptimalDisplayScale, setDisplayScale, setZoom, toggleGrid } = useCanvas();
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   
-  // 自动计算和设置显示缩放比例
+  // 监控容器尺寸变化
   useEffect(() => {
-    const updateDisplayScale = () => {
-      if (canvasContainerRef.current) {
-        const container = canvasContainerRef.current;
-        const containerWidth = container.clientWidth;
-        const containerHeight = container.clientHeight;
-        
-        if (containerWidth > 0 && containerHeight > 0) {
-          const optimalScale = calculateOptimalDisplayScale(containerWidth, containerHeight);
-          setDisplayScale(optimalScale);
-          console.log('📈 自动计算显示缩放比例:', {
-            containerSize: { width: containerWidth, height: containerHeight },
+    const container = canvasContainerRef.current;
+    if (!container) return;
+    
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        console.log('📄 画布容器尺寸变化:', {
+          新尺寸: { width, height },
+          当前状态: {
             canvasSize: state.canvasSize,
-            optimalScale,
-          });
-        }
+            displayScale: state.displayScale,
+            zoom: state.zoom
+          }
+        });
       }
+    });
+    
+    resizeObserver.observe(container);
+    
+    return () => {
+      resizeObserver.disconnect();
     };
-    
-    // 初始计算
-    updateDisplayScale();
-    
-    // 窗口尺寸变化时重新计算
-    const handleResize = () => {
-      updateDisplayScale();
-    };
-    
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [state.canvasSize, calculateOptimalDisplayScale, setDisplayScale]);
-  
-  // 画布尺寸变化时重新计算显示缩放
-  useEffect(() => {
-    if (canvasContainerRef.current) {
-      const container = canvasContainerRef.current;
-      const containerWidth = container.clientWidth;
-      const containerHeight = container.clientHeight;
-      
-      if (containerWidth > 0 && containerHeight > 0) {
-        const optimalScale = calculateOptimalDisplayScale(containerWidth, containerHeight);
-        setDisplayScale(optimalScale);
-      }
-    }
-  }, [state.canvasSize, calculateOptimalDisplayScale, setDisplayScale]);
+  }, [state.canvasSize, state.displayScale, state.zoom]);
   
   // 处理图片上传
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -178,66 +259,11 @@ const CanvasContent: React.FC<{
           
           {/* 缩放控件 */}
           <div className="flex items-center space-x-4">
-            {/* 实际尺寸和显示缩放信息 */}
-            <div className="flex items-center space-x-4 text-sm text-gray-600">
-              <span>实际尺寸: {state.canvasSize.width} × {state.canvasSize.height}</span>
-              <span>显示缩放: {Math.round(state.displayScale * 100)}%</span>
-            </div>
-            
-            {/* 手动缩放控件 */}
-            <div className="flex items-center space-x-2 border border-gray-300 rounded-md px-3 py-1">
-              <button
-                onClick={() => setZoom(Math.max(0.1, state.zoom - 0.1))}
-                className="w-6 h-6 flex items-center justify-center text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded"
-                title="缩小"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                </svg>
-              </button>
-              
-              <span className="text-sm text-gray-700 min-w-[3rem] text-center">
-                {Math.round(state.zoom * 100)}%
-              </span>
-              
-              <button
-                onClick={() => setZoom(Math.min(3, state.zoom + 0.1))}
-                className="w-6 h-6 flex items-center justify-center text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded"
-                title="放大"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-              </button>
-              
-              {/* 重置缩放按钮 */}
-              <div className="border-l border-gray-300 pl-2 ml-2">
-                <button
-                  onClick={() => setZoom(1)}
-                  className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 hover:bg-gray-100 rounded"
-                  title="重置缩放"
-                >
-                  重置
-                </button>
-              </div>
-            </div>
-            
-            {/* 自适应缩放按钮 */}
-            <button
-              onClick={() => {
-                if (canvasContainerRef.current) {
-                  const container = canvasContainerRef.current;
-                  const containerWidth = container.clientWidth;
-                  const containerHeight = container.clientHeight;
-                  const optimalScale = calculateOptimalDisplayScale(containerWidth, containerHeight);
-                  setDisplayScale(optimalScale);
-                }
-              }}
-              className="px-3 py-1 text-sm text-gray-600 hover:text-gray-900 border border-gray-300 rounded-md hover:bg-gray-50"
-              title="自适应显示"
-            >
-              自适应
-            </button>
+            {/* 缩放比例选择器 - 使用自定义组件 */}
+            <ZoomControl
+              value={state.zoom}
+              onChange={setZoom}
+            />
             
             {/* 网格显隐开关 */}
             <button
@@ -263,26 +289,61 @@ const CanvasContent: React.FC<{
       {/* 画布区域 - 固定大小，支持滚动 */}
       <div 
         ref={canvasContainerRef}
-        className="flex-1 bg-gray-600 overflow-auto"
+        className="flex-1 bg-gray-200 relative"
         style={{
           minHeight: '400px',
-          maxHeight: 'calc(100vh - 200px)', // 固定最大高度
+          overflow: 'hidden', // 隐藏原生滚动条，使用自定义滚动
         }}
       >
+        {/* 内部滚动容器 */}
         <div 
-          className="p-6 flex justify-center items-center"
+          className="absolute inset-0 overflow-auto"
           style={{
-            minWidth: '100%',
-            minHeight: '100%',
-            width: 'max-content',
-            height: 'max-content',
+            // 使用transform来创建独立的滚动环境
+            transform: 'translate3d(0, 0, 0)',
+          }}
+          onScroll={(e) => {
+            console.log('🔄 画布容器滚动事件:', {
+              scrollLeft: e.currentTarget.scrollLeft,
+              scrollTop: e.currentTarget.scrollTop,
+              scrollWidth: e.currentTarget.scrollWidth,
+              scrollHeight: e.currentTarget.scrollHeight,
+              clientWidth: e.currentTarget.clientWidth,
+              clientHeight: e.currentTarget.clientHeight
+            });
           }}
         >
-          {/* 画布 */}
-          <DragDropCanvas 
-            className="shadow-lg"
-            onElementDoubleClick={onElementDoubleClick}
-          />
+          {/* 滚动内容区域 - 动态计算尺寸以容纳缩放后的画布 */}
+          <div 
+            className="relative"
+            style={{
+              // 计算所需的滚动区域大小，确保缩放后的画布能完全显示
+              width: Math.max(
+                800, // 最小宽度
+                (state.canvasSize.width * state.displayScale * state.zoom) + 200 // 画布实际显示尺寸 + 边距
+              ),
+              height: Math.max(
+                600, // 最小高度
+                (state.canvasSize.height * state.displayScale * state.zoom) + 200 // 画布实际显示尺寸 + 边距
+              ),
+            }}
+          >
+            {/* 画布居中容器 */}
+            <div 
+              className="absolute"
+              style={{
+                left: '50%',
+                top: '50%',
+                transform: 'translate(-50%, -50%)',
+              }}
+            >
+              {/* 画布 - 固定原始尺寸，通过CSS transform处理缩放 */}
+              <DragDropCanvas 
+                className="shadow-lg"
+                onElementDoubleClick={onElementDoubleClick}
+              />
+            </div>
+          </div>
         </div>
       </div>
       
@@ -457,13 +518,12 @@ const HomePageContent: React.FC = () => {
       event.target.value = '';
     }
   };
-  
-
 
   return (
     <div className="h-[calc(100vh-4rem)] w-screen bg-gray-100 flex gap-6 p-6 overflow-hidden">
-        {/* 左侧相册树 - 1/5 比例 */}
-        <div className="flex-1 h-full bg-white border border-gray-200 rounded-lg shadow-sm flex flex-col">
+      {/* 左侧相册树 - 1/5 比例 */}
+      <div className="flex-shrink-0" style={{ width: '20%' }}>
+        <div className="h-full bg-white border border-gray-200 rounded-lg shadow-sm flex flex-col">
           <div className="p-4 border-b border-gray-200">
             <h2 className="text-lg font-semibold text-gray-900">相册管理</h2>
           </div>
@@ -480,9 +540,11 @@ const HomePageContent: React.FC = () => {
             />
           </div>
         </div>
+      </div>
 
-        {/* 中间画布区域 - 3/5 比例，主要工作区域 */}
-        <div className="flex-[3] h-full bg-white border border-gray-200 rounded-lg shadow-sm flex flex-col">
+      {/* 中间画布区域 - 3/5 比例，主要工作区域 */}
+      <div className="flex-1" style={{ minWidth: 0 }}>
+        <div className="h-full bg-white border border-gray-200 rounded-lg shadow-sm flex flex-col">
           <CanvasContent
             selectedPage={selectedPage}
             selectedAlbum={selectedAlbum}
@@ -492,9 +554,11 @@ const HomePageContent: React.FC = () => {
             onImageUpload={handleImageUpload}
           />
         </div>
+      </div>
 
-        {/* 右侧工具栏 - 1/5 比例 */}
-        <div className="flex-1 h-full bg-white border border-gray-200 rounded-lg shadow-sm flex flex-col">
+      {/* 右侧工具栏 - 1/5 比例 */}
+      <div className="flex-shrink-0" style={{ width: '20%' }}>
+        <div className="h-full bg-white border border-gray-200 rounded-lg shadow-sm flex flex-col">
           {/* 画布尺寸选择 */}
           <div className="p-4 border-b border-gray-200">
             <h3 className="text-base font-semibold text-gray-900 mb-3">画布设置</h3>
@@ -606,6 +670,7 @@ const HomePageContent: React.FC = () => {
           </div> */}
         </div>
       </div>
+    </div>
   );
 };
 
