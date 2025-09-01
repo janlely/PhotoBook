@@ -157,7 +157,7 @@ const DraggableToolElement: React.FC<{
 };
 
 // 画布内容组件 - 在CanvasProvider内部，可以访问canvas context
-const CanvasContent: React.FC<{
+  const CanvasContent: React.FC<{
   selectedPage: Page | null;
   selectedAlbum: Album | null;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
@@ -174,6 +174,49 @@ const CanvasContent: React.FC<{
 }) => {
   const { updateElement, getElementById, state, calculateOptimalDisplayScale, setDisplayScale, setZoom, toggleGrid } = useCanvas();
   const canvasContainerRef = useRef<HTMLDivElement>(null);
+  const [isInitialScaleCalculated, setIsInitialScaleCalculated] = useState(false);
+  
+  // 计算并设置初始缩放比例
+  useEffect(() => {
+    const container = canvasContainerRef.current;
+    if (!container || isInitialScaleCalculated || !selectedPage) return;
+    
+    // 获取容器实际尺寸
+    const containerRect = container.getBoundingClientRect();
+    const containerWidth = containerRect.width;
+    const containerHeight = containerRect.height;
+    
+    // 计算画布尺寸（考虑边距，使用10%边距）
+    const marginRatio = 0.1;
+    const availableWidth = containerWidth * (1 - marginRatio * 2);
+    const availableHeight = containerHeight * (1 - marginRatio * 2);
+    
+    // 计算最佳缩放比例
+    const canvasWidth = state.canvasSize.width;
+    const canvasHeight = state.canvasSize.height;
+    
+    const scaleX = availableWidth / canvasWidth;
+    const scaleY = availableHeight / canvasHeight;
+    const optimalScale = Math.min(scaleX, scaleY, 1); // 最大不超过100%
+    
+    console.log('🎯 计算初始缩放比例:', {
+      容器尺寸: { width: containerWidth, height: containerHeight },
+      画布尺寸: { width: canvasWidth, height: canvasHeight },
+      可用尺寸: { width: availableWidth, height: availableHeight },
+      计算比例: { scaleX, scaleY },
+      最终缩放: optimalScale
+    });
+    
+    // 设置初始缩放比例
+    setZoom(optimalScale);
+    setIsInitialScaleCalculated(true);
+    
+  }, [selectedPage, state.canvasSize, setZoom, isInitialScaleCalculated]);
+  
+  // 当选择新页面时重置计算状态
+  useEffect(() => {
+    setIsInitialScaleCalculated(false);
+  }, [selectedPage]);
   
   // 监控容器尺寸变化
   useEffect(() => {
@@ -191,6 +234,19 @@ const CanvasContent: React.FC<{
             zoom: state.zoom
           }
         });
+        
+        // 如果初始缩放比例已计算，窗口大小变化时重新计算
+        if (isInitialScaleCalculated && selectedPage) {
+          const marginRatio = 0.1;
+          const availableWidth = width * (1 - marginRatio * 2);
+          const availableHeight = height * (1 - marginRatio * 2);
+          
+          const scaleX = availableWidth / state.canvasSize.width;
+          const scaleY = availableHeight / state.canvasSize.height;
+          const optimalScale = Math.min(scaleX, scaleY, 1);
+          
+          setZoom(optimalScale);
+        }
       }
     });
     
@@ -199,7 +255,7 @@ const CanvasContent: React.FC<{
     return () => {
       resizeObserver.disconnect();
     };
-  }, [state.canvasSize, state.displayScale, state.zoom]);
+  }, [state.canvasSize, state.displayScale, state.zoom, isInitialScaleCalculated, selectedPage, setZoom]);
   
   // 处理图片上传
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -258,12 +314,34 @@ const CanvasContent: React.FC<{
           </div>
           
           {/* 缩放控件 */}
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2">
+            {/* 减号按钮 */}
+            <button
+              onClick={() => setZoom(Math.max(0.1, state.zoom - 0.1))}
+              className="p-1 rounded-md border border-gray-300 hover:bg-gray-50 transition-colors"
+              title="缩小"
+            >
+              <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+              </svg>
+            </button>
+            
             {/* 缩放比例选择器 - 使用自定义组件 */}
             <ZoomControl
               value={state.zoom}
               onChange={setZoom}
             />
+            
+            {/* 加号按钮 */}
+            <button
+              onClick={() => setZoom(Math.min(5, state.zoom + 0.1))}
+              className="p-1 rounded-md border border-gray-300 hover:bg-gray-50 transition-colors"
+              title="放大"
+            >
+              <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+            </button>
             
             {/* 网格显隐开关 */}
             <button
@@ -317,15 +395,17 @@ const CanvasContent: React.FC<{
           <div 
             className="relative"
             style={{
-              // 计算所需的滚动区域大小，确保缩放后的画布能完全显示
+              // 使用画布尺寸的20%作为边距（每边10%），避免固定像素边距
               width: Math.max(
                 800, // 最小宽度
-                (state.canvasSize.width * state.displayScale * state.zoom) + 200 // 画布实际显示尺寸 + 边距
+                (state.canvasSize.width * state.displayScale * state.zoom) * 1.2 // 画布实际显示尺寸 + 20%边距
               ),
               height: Math.max(
                 600, // 最小高度
-                (state.canvasSize.height * state.displayScale * state.zoom) + 200 // 画布实际显示尺寸 + 边距
+                (state.canvasSize.height * state.displayScale * state.zoom) * 1.2 // 画布实际显示尺寸 + 20%边距
               ),
+              minWidth: '100%', // 确保背景完全填充容器
+              minHeight: '100%',
             }}
           >
             {/* 画布居中容器 */}
