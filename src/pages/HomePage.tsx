@@ -172,14 +172,13 @@ const DraggableToolElement: React.FC<{
   onElementDoubleClick,
   onImageUpload
 }) => {
-  const { updateElement, getElementById, state, calculateOptimalDisplayScale, setDisplayScale, setZoom, toggleGrid } = useCanvas();
+  const { updateElement, getElementById, state, setZoom, toggleGrid } = useCanvas();
   const canvasContainerRef = useRef<HTMLDivElement>(null);
-  const [isInitialScaleCalculated, setIsInitialScaleCalculated] = useState(false);
   
-  // 计算并设置初始缩放比例
-  useEffect(() => {
+  // 计算并设置最佳缩放比例
+  const calculateOptimalZoom = React.useCallback(() => {
     const container = canvasContainerRef.current;
-    if (!container || isInitialScaleCalculated || !selectedPage) return;
+    if (!container || !selectedPage) return;
     
     // 获取容器实际尺寸
     const containerRect = container.getBoundingClientRect();
@@ -199,7 +198,7 @@ const DraggableToolElement: React.FC<{
     const scaleY = availableHeight / canvasHeight;
     const optimalScale = Math.min(scaleX, scaleY, 1); // 最大不超过100%
     
-    console.log('🎯 计算初始缩放比例:', {
+    console.log('🎯 计算缩放比例:', {
       容器尺寸: { width: containerWidth, height: containerHeight },
       画布尺寸: { width: canvasWidth, height: canvasHeight },
       可用尺寸: { width: availableWidth, height: availableHeight },
@@ -207,16 +206,14 @@ const DraggableToolElement: React.FC<{
       最终缩放: optimalScale
     });
     
-    // 设置初始缩放比例
+    // 设置缩放比例
     setZoom(optimalScale);
-    setIsInitialScaleCalculated(true);
-    
-  }, [selectedPage, state.canvasSize, setZoom, isInitialScaleCalculated]);
+  }, [selectedPage, state.canvasSize, setZoom]);
   
-  // 当选择新页面时重置计算状态
+  // 当选择新页面或画布尺寸变化时重新计算缩放
   useEffect(() => {
-    setIsInitialScaleCalculated(false);
-  }, [selectedPage]);
+    calculateOptimalZoom();
+  }, [selectedPage, state.canvasSize, calculateOptimalZoom]);
   
   // 监控容器尺寸变化
   useEffect(() => {
@@ -225,28 +222,7 @@ const DraggableToolElement: React.FC<{
     
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        const { width, height } = entry.contentRect;
-        // console.log('📄 画布容器尺寸变化:', {
-        //   新尺寸: { width, height },
-        //   当前状态: {
-        //     canvasSize: state.canvasSize,
-        //     displayScale: state.displayScale,
-        //     zoom: state.zoom
-        //   }
-        // });
-        
-        // 如果初始缩放比例已计算，窗口大小变化时重新计算
-        if (isInitialScaleCalculated && selectedPage) {
-          const marginRatio = 0.1;
-          const availableWidth = width * (1 - marginRatio * 2);
-          const availableHeight = height * (1 - marginRatio * 2);
-          
-          const scaleX = availableWidth / state.canvasSize.width;
-          const scaleY = availableHeight / state.canvasSize.height;
-          const optimalScale = Math.min(scaleX, scaleY, 1);
-          
-          setZoom(optimalScale);
-        }
+        calculateOptimalZoom();
       }
     });
     
@@ -255,7 +231,7 @@ const DraggableToolElement: React.FC<{
     return () => {
       resizeObserver.disconnect();
     };
-  }, [state.canvasSize, state.displayScale, state.zoom, isInitialScaleCalculated, selectedPage, setZoom]);
+  }, [calculateOptimalZoom]);
   
   // 处理图片上传
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
