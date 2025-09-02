@@ -226,14 +226,14 @@ const DraggableToolElement: React.FC<{
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
-        console.log('📄 画布容器尺寸变化:', {
-          新尺寸: { width, height },
-          当前状态: {
-            canvasSize: state.canvasSize,
-            displayScale: state.displayScale,
-            zoom: state.zoom
-          }
-        });
+        // console.log('📄 画布容器尺寸变化:', {
+        //   新尺寸: { width, height },
+        //   当前状态: {
+        //     canvasSize: state.canvasSize,
+        //     displayScale: state.displayScale,
+        //     zoom: state.zoom
+        //   }
+        // });
         
         // 如果初始缩放比例已计算，窗口大小变化时重新计算
         if (isInitialScaleCalculated && selectedPage) {
@@ -381,14 +381,14 @@ const DraggableToolElement: React.FC<{
             transform: 'translate3d(0, 0, 0)',
           }}
           onScroll={(e) => {
-            console.log('🔄 画布容器滚动事件:', {
-              scrollLeft: e.currentTarget.scrollLeft,
-              scrollTop: e.currentTarget.scrollTop,
-              scrollWidth: e.currentTarget.scrollWidth,
-              scrollHeight: e.currentTarget.scrollHeight,
-              clientWidth: e.currentTarget.clientWidth,
-              clientHeight: e.currentTarget.clientHeight
-            });
+            // console.log('🔄 画布容器滚动事件:', {
+            //   scrollLeft: e.currentTarget.scrollLeft,
+            //   scrollTop: e.currentTarget.scrollTop,
+            //   scrollWidth: e.currentTarget.scrollWidth,
+            //   scrollHeight: e.currentTarget.scrollHeight,
+            //   clientWidth: e.currentTarget.clientWidth,
+            //   clientHeight: e.currentTarget.clientHeight
+            // });
           }}
         >
           {/* 滚动内容区域 - 动态计算尺寸以容纳缩放后的画布 */}
