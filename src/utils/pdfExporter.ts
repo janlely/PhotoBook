@@ -69,7 +69,7 @@ class VirtualRenderer {
     
     // 转换为Canvas
     console.log('canvas size:', pageData.canvasSize.width, pageData.canvasSize.height);
-    return this.chunkedRendering(container, pageData.canvasSize);
+    return this.chunkedRendering(container);
   }
   
   private createElementDiv(element: CanvasElement): HTMLElement {
@@ -117,7 +117,6 @@ class VirtualRenderer {
     container.appendChild(textDiv);
     return container;
   }
-
   private createImageElement(element: ImageElement, container: HTMLElement): HTMLElement {
     const img = this.virtualDocument.createElement('img');
     img.src = element.src;
@@ -171,13 +170,7 @@ class VirtualRenderer {
 
   private async chunkedRendering(
     container: HTMLElement, 
-    size: { width: number; height: number }
   ): Promise<HTMLCanvasElement> {
-    const CHUNK_SIZE = 4096; // 4K分块
-    const canvas = document.createElement('canvas');
-    canvas.width = size.width;
-    canvas.height = size.height;
-    const ctx = canvas.getContext('2d')!;
 
     // 创建临时容器并附加到文档
     const tempContainer = document.createElement('div');
@@ -193,42 +186,15 @@ class VirtualRenderer {
     tempContainer.appendChild(container);
 
     try {
-      // 小尺寸直接渲染
-      if (size.width <= CHUNK_SIZE && size.height <= CHUNK_SIZE) {
-        console.log('window.devicePixelRatio: ', window.devicePixelRatio)
-        const chunk = await html2canvas(container as any, {
-          // scale: window.devicePixelRatio,
-          scale: 1,
-          width: size.width,
-          height: size.height,
-          useCORS: true,
-          backgroundColor: '#ffffff',
-          logging: false
-        });
-        ctx.drawImage(chunk, 0, 0);
-        return canvas;
-      }
-
-      // 大尺寸分块渲染
-      for (let y = 0; y < size.height; y += CHUNK_SIZE) {
-        for (let x = 0; x < size.width; x += CHUNK_SIZE) {
-          container.style.transform = `translate(-${x}px, -${y}px)`;
-          
-          const chunk = await html2canvas(container as any, {
-            scale: window.devicePixelRatio,
-            width: Math.min(CHUNK_SIZE, size.width - x),
-            height: Math.min(CHUNK_SIZE, size.height - y),
-            x,
-            y,
-            useCORS: true,
-            backgroundColor: '#ffffff',
-            logging: false
-          });
-          
-          ctx.drawImage(chunk, x, y);
-        }
-      }
-      return canvas;
+      console.log('window.devicePixelRatio: ', window.devicePixelRatio)
+      console.log('container size: ', container.offsetWidth, container.offsetHeight);
+      return await html2canvas(container as any, {
+        // scale: window.devicePixelRatio,
+        scale: 1,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false
+      });
     } finally {
       // 清理临时容器
       if (document.body.contains(tempContainer)) {
@@ -595,24 +561,14 @@ export class AlbumPDFExporter {
       previewDoc.close();
     }
   }
-  private getPDFFormat(format: string, canvasSize: { width: number; height: number }): [number, number] {
-    switch (format) {
-      case 'A4':
-        return [595.28, 841.89]; // A4 in points
-      case 'A5':
-        return [419.53, 595.28]; // A5 in points
-      case 'original':
-      default:
-        return [canvasSize.width, canvasSize.height];
-    }
-  }
-
   private addPageToPDF(
     pdf: jsPDF,
     canvas: HTMLCanvasElement,
     canvasSize: { width: number; height: number },
   ) {
 
+    console.log('offset:', canvas.offsetWidth, canvas.offsetHeight);
+    console.log('size:', canvasSize.width, canvasSize.height);
     pdf.addPage([canvasSize.width, canvasSize.height]);
 
     const imgData = canvas.toDataURL('image/png', 1.0);
@@ -627,8 +583,6 @@ export class AlbumPDFExporter {
     return pagesAPI.getCanvas(pageId);
   }
 }
-
-
 
 
 // 单例导出
