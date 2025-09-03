@@ -3,6 +3,7 @@ import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '@headlessui/re
 import { albumsAPI } from '../api/albums';
 import type { Album, Page } from '../api/albums';
 import { ChevronRightIcon, ChevronDownIcon, FolderIcon, PlusIcon, DocumentIcon, MinusIcon } from '@heroicons/react/24/outline';
+import { AlbumExportButton } from './AlbumExportButton';
 
 interface AlbumTreeProps {
   onAlbumSelect: (album: Album) => void;
@@ -81,9 +82,15 @@ const AlbumTreeItem: React.FC<AlbumTreeItemProps> = ({
         </button>
         <FolderIcon className="h-5 w-5 text-gray-400 mr-2" />
         <span className="text-sm flex-1">{album.title}</span>
-        <span className="text-xs text-gray-500">
+        <span className="text-xs text-gray-500 mr-2">
           {album.pages?.length || 0} 页面
         </span>
+        <AlbumExportButton 
+          albumId={album.id} 
+          albumTitle={album.title}
+          className="ml-1"
+          iconOnly={true}
+        />
       </div>
       
       {isExpanded && (
