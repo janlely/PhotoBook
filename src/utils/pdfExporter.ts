@@ -414,15 +414,13 @@ export class AlbumPDFExporter {
         pages.map((page: { id: number }) => this.getPageCanvasData(page.id))
       );
 
-      // 确定PDF尺寸
-      const formatSize = this.getPDFFormat(options.format, pagesData[0]?.canvasSize);
-      
       // 创建PDF
-      const pdf = new jsPDF({
+      let pdf: jsPDF = new jsPDF({
         orientation: options.orientation,
-        unit: 'pt',
-        format: formatSize
+        unit: 'px'
       });
+      pdf.deletePage(1);
+
 
       // 逐页处理
       for (let i = 0; i < pagesData.length; i++) {
@@ -439,14 +437,10 @@ export class AlbumPDFExporter {
         const canvas = await this.renderer.renderPage(pageData);
 
         // 调试：在新tab中显示canvas供检查
-        this.renderCanvasForDebug(pageData, canvas, i);
+        // this.renderCanvasForDebug(pageData, canvas, i);
         
-        // 添加到PDF
-        if (i > 0) {
-          pdf.addPage();
-        }
         
-        this.addPageToPDF(pdf, canvas, pageData.canvasSize, options);
+        this.addPageToPDF(pdf, canvas, pageData.canvasSize);
       }
 
       this.updateProgress({
@@ -456,7 +450,7 @@ export class AlbumPDFExporter {
         status: 'generating'
       });
 
-      const blob = pdf.output('blob');
+      const blob = pdf?.output('blob');
       
       this.updateProgress({
         currentPage: pagesData.length,
@@ -465,7 +459,7 @@ export class AlbumPDFExporter {
         status: 'complete'
       });
 
-      return blob;
+      return blob!;
     } catch (error) {
       console.error('PDF导出失败:', error);
       throw error;
@@ -617,37 +611,12 @@ export class AlbumPDFExporter {
     pdf: jsPDF,
     canvas: HTMLCanvasElement,
     canvasSize: { width: number; height: number },
-    options: ExportOptions
   ) {
-    const scale = options.quality === 'high' ? 2 : options.quality === 'standard' ? 1.5 : 1;
+
+    pdf.addPage([canvasSize.width, canvasSize.height]);
+
     const imgData = canvas.toDataURL('image/png', 1.0);
-
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = pdf.internal.pageSize.getHeight();
-
-    // 将像素尺寸转换为点(pt) - 基于300dpi (1px = 72/300 = 0.24pt)
-    const pxToPt = 72 / 300;
-    const canvasWidthPt = canvasSize.width * pxToPt;
-    const canvasHeightPt = canvasSize.height * pxToPt;
-
-    let scaleRatio = 1;
-    if (options.format !== 'original') {
-      // 计算缩放比例以确保内容填满PDF页面
-      scaleRatio = Math.min(
-        pdfWidth / canvasWidthPt,
-        pdfHeight / canvasHeightPt
-      );
-    }
-
-    // 应用DPI缩放和质量缩放
-    const finalWidth = canvasWidthPt * scaleRatio * scale;
-    const finalHeight = canvasHeightPt * scaleRatio * scale;
-
-    // 居中显示
-    const x = (pdfWidth - finalWidth) / 2;
-    const y = (pdfHeight - finalHeight) / 2;
-
-    pdf.addImage(imgData, 'PNG', x, y, finalWidth, finalHeight);
+    pdf.addImage(imgData, 'PNG', 0, 0, canvasSize.width, canvasSize.height);
   }
 
   private async getAlbumData(albumId: number) {
