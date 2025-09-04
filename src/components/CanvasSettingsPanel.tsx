@@ -1,5 +1,6 @@
 import React from 'react';
 import { useCanvas } from '../contexts/CanvasContext';
+import BackgroundScopeSelector from './BackgroundScopeSelector';
 
 const CanvasSettingsPanel: React.FC = () => {
   const { 
@@ -75,6 +76,8 @@ const CanvasSettingsPanel: React.FC = () => {
           />
         </div>
       </div>
+      
+      <BackgroundScopeSelector />
     </div>
   );
 };

@@ -30,13 +30,15 @@ model Album {
   id        Int      @id @default(autoincrement())
   title     String
   parentId  Int?
-  parent    Album?   @relation("AlbumToAlbum", fields: [parentId], references: [id])
-  children  Album[]  @relation("AlbumToAlbum")
   userId    Int
   user      User     @relation(fields: [userId], references: [id])
-  pages     Page[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  pages     Page[]
+  children  Album[]  @relation("AlbumToAlbum")
+  parent    Album?   @relation("AlbumToAlbum", fields: [parentId], references: [id])
+  backgroundColor String?   // 相册背景色
+  backgroundImage String?   // 相册背景图片URL
 }
 
 model Page {
@@ -47,6 +49,8 @@ model Page {
   album     Album    @relation(fields: [albumId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  backgroundColor String?   // 页面背景色
+  backgroundImage String?   // 页面背景图片URL
 }
 
 model Image {

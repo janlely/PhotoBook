@@ -9,6 +9,8 @@ export interface Album {
   pages: Page[];
   createdAt: string;
   updatedAt: string;
+  backgroundColor?: string; // 相册背景色
+  backgroundImage?: string; // 相册背景图片URL
 }
 
 export interface Page {
@@ -18,6 +20,8 @@ export interface Page {
   albumId: number;
   createdAt: string;
   updatedAt: string;
+  backgroundColor?: string; // 页面背景色
+  backgroundImage?: string; // 页面背景图片URL
 }
 
 export const albumsAPI = {

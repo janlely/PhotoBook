@@ -96,6 +96,7 @@ export interface CanvasState {
   currentPageId: number | null; // 添加当前页面ID
   backgroundColor: string; // 添加背景颜色
   backgroundImage: string | null; // 添加背景图片URL
+  backgroundScope: 'page' | 'album'; // 背景应用范围
 }
 
 interface CanvasContextType {
@@ -162,6 +163,7 @@ interface CanvasContextType {
   // Preview and export utilities
   setBackgroundColor: (color: string) => void;
   setBackgroundImage: (imageUrl: string | null) => void;
+  setBackgroundScope: (scope: 'page' | 'album') => void;
   setPreviewMode: (enabled: boolean) => void;
   exportCanvasAsImage: (format: 'png' | 'jpeg', quality?: number) => Promise<Blob>;
   exportCanvasToPDF: () => Promise<Blob>;
@@ -200,6 +202,7 @@ const initialState: CanvasState = {
   currentPageId: null,
   backgroundColor: '#FFFFFF', // 默认白色背景
   backgroundImage: null, // 无背景图片
+  backgroundScope: 'page', // 默认页面级作用域
 };
 
 interface CanvasProviderProps {
@@ -740,6 +743,12 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
     setState(prev => ({
       ...prev,
       backgroundImage: imageUrl
+    }));
+  },
+  setBackgroundScope: (scope: 'page' | 'album') => {
+    setState(prev => ({
+      ...prev,
+      backgroundScope: scope
     }));
   },
   setPreviewMode,
