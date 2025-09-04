@@ -282,10 +282,12 @@ const DraggableToolElement: React.FC<{
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">
-              {selectedPage ? selectedPage.title : '画布编辑器'}
+              {selectedPage ? selectedPage.title : 'Playground'}
             </h2>
             <p className="text-sm text-gray-600">
-              {selectedPage ? `相册: ${selectedAlbum?.title}` : '请选择页面开始编辑'}
+              {selectedPage 
+                ? `相册: ${selectedAlbum?.title}` 
+                : '临时设计区域 - 此内容不会保存，请选择相册页面进行正式编辑'}
             </p>
           </div>
           
@@ -420,6 +422,8 @@ const HomePageContent: React.FC = () => {
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
   const [selectedPage, setSelectedPage] = useState<Page | null>(null);
   const [albums, setAlbums] = useState<Album[]>([]);
+  const [activeTab, setActiveTab] = useState<'design' | 'properties' | 'settings'>('settings');
+  const bgImageInputRef = useRef<HTMLInputElement>(null);
   
   // 用于图片上传的文件输入引用
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -427,7 +431,20 @@ const HomePageContent: React.FC = () => {
   const currentImageElementRef = useRef<string | null>(null);
   
   // 获取画布状态和操作函数
-  const { toggleGrid, toggleSnapToGrid, setGridSize, state, setCurrentPageId, loadCanvasData, saveStatus, forceSave, clearSaveError, setCanvasSize } = useCanvas();
+  const { 
+  toggleGrid, 
+  toggleSnapToGrid, 
+  setGridSize, 
+  state, 
+  setCurrentPageId, 
+  loadCanvasData, 
+  saveStatus, 
+  forceSave, 
+  clearSaveError, 
+  setCanvasSize,
+  setBackgroundColor,
+  setBackgroundImage
+} = useCanvas();
 
   // 加载相册数据
   const loadAlbums = async () => {
@@ -568,6 +585,27 @@ const HomePageContent: React.FC = () => {
   };
   
   // 图片上传处理函数  
+  // 处理背景图片上传
+  const handleBackgroundImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !file.type.startsWith('image/')) return;
+    
+    try {
+      // 使用后台 API 上传图片
+      const result = await uploadImage(file);
+      console.log('背景图片上传成功:', result);
+      
+      // 设置背景图片URL
+      setBackgroundImage(result.image.url);
+    } catch (error) {
+      console.error('背景图片上传失败:', error);
+      alert('背景图片上传失败: ' + (error instanceof Error ? error.message : '未知错误'));
+    } finally {
+      // 重置文件输入
+      if (event.target) event.target.value = '';
+    }
+  };
+
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     // 清空文件输入，为下一次选择做准备
     if (event.target) {
@@ -615,98 +653,221 @@ const HomePageContent: React.FC = () => {
       {/* 右侧工具栏 - 1/5 比例 */}
       <div className="flex-shrink-0" style={{ width: '20%' }}>
         <div className="h-full bg-white border border-gray-200 rounded-lg shadow-sm flex flex-col">
-          {/* 画布尺寸选择 */}
-          <div className="p-4 border-b border-gray-200">
-            <h3 className="text-base font-semibold text-gray-900 mb-3">画布设置</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  尺寸选择
-                </label>
-                <select
-                  value={`${state.canvasSize.width}x${state.canvasSize.height}`}
-                  onChange={(e) => {
-                    const [width, height] = e.target.value.split('x').map(Number);
-                    setCanvasSize({ width, height });
-                  }}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                >
-                  <option value="1240x1754">A4竖版 (1240 × 1754)</option>
-                  <option value="1754x1240">A4横版 (1754 × 1240)</option>
-                  <option value="1169x1654">A5竖版 (1169 × 1654)</option>
-                  <option value="1654x1169">A5横版 (1654 × 1169)</option>
-                  <option value="2480x3508">A4高分辨率竖版 (2480 × 3508)</option>
-                  <option value="3508x2480">A4高分辨率横版 (3508 × 2480)</option>
-                  <option value="1200x1200">正方形中 (1200 × 1200)</option>
-                  <option value="1500x1500">正方形大 (1500 × 1500)</option>
-                  <option value="800x800">正方形小 (800 × 800)</option>
-                  <option value="1920x1080">横屏16:9 (1920 × 1080)</option>
-                  <option value="1080x1920">竖屏9:16 (1080 × 1920)</option>
-                  <option value="1500x2100">传统相册竖版 (1500 × 2100)</option>
-                  <option value="2100x1500">传统相册横版 (2100 × 1500)</option>
-                  <option value="800x600">自定义小尺寸 (800 × 600)</option>
-                </select>
-              </div>
-              
-              {/* 网格设置 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  网格设置
-                </label>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">网格大小: {state.gridSize}px</span>
-                    <input
-                      type="range"
-                      min="10"
-                      max="50"
-                      value={state.gridSize}
-                      onChange={(e) => setGridSize(Number(e.target.value))}
-                      className="w-20"
-                    />
+          {/* 标签导航 */}
+          <div className="flex border-b border-gray-200">
+            <button
+              className={`flex-1 py-2 text-sm font-medium ${
+                activeTab === 'settings' 
+                  ? 'text-blue-600 border-b-2 border-blue-600' 
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+              onClick={() => setActiveTab('settings')}
+            >
+              画布设置
+            </button>
+            <button
+              className={`flex-1 py-2 text-sm font-medium ${
+                activeTab === 'design' 
+                  ? 'text-blue-600 border-b-2 border-blue-600' 
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+              onClick={() => setActiveTab('design')}
+            >
+              设计工具
+            </button>
+            <button
+              className={`flex-1 py-2 text-sm font-medium ${
+                activeTab === 'properties' 
+                  ? 'text-blue-600 border-b-2 border-blue-600' 
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+              onClick={() => setActiveTab('properties')}
+            >
+              元素属性
+            </button>
+          </div>
+          
+          {/* 标签内容 */}
+          <div className="flex-1 overflow-y-auto">
+            {activeTab === 'settings' && (
+              <div className="p-4">
+                <h3 className="text-base font-semibold text-gray-900 mb-3">画布设置</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      尺寸选择
+                    </label>
+                    <select
+                      value={`${state.canvasSize.width}x${state.canvasSize.height}`}
+                      onChange={(e) => {
+                        const [width, height] = e.target.value.split('x').map(Number);
+                        setCanvasSize({ width, height });
+                      }}
+                      className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    >
+                      <option value="1240x1754">A4竖版 (1240 × 1754)</option>
+                      <option value="1754x1240">A4横版 (1754 × 1240)</option>
+                      <option value="1169x1654">A5竖版 (1169 × 1654)</option>
+                      <option value="1654x1169">A5横版 (1654 × 1169)</option>
+                      <option value="2480x3508">A4高分辨率竖版 (2480 × 3508)</option>
+                      <option value="3508x2480">A4高分辨率横版 (3508 × 2480)</option>
+                      <option value="1200x1200">正方形中 (1200 × 1200)</option>
+                      <option value="1500x1500">正方形大 (1500 × 1500)</option>
+                      <option value="800x800">正方形小 (800 × 800)</option>
+                      <option value="1920x1080">横屏16:9 (1920 × 1080)</option>
+                      <option value="1080x1920">竖屏9:16 (1080 × 1920)</option>
+                      <option value="1500x2100">传统相册竖版 (1500 × 2100)</option>
+                      <option value="2100x1500">传统相册横版 (2100 × 1500)</option>
+                      <option value="800x600">自定义小尺寸 (800 × 600)</option>
+                    </select>
                   </div>
-                  <label className="flex items-center text-sm text-gray-600">
-                    <input
-                      type="checkbox"
-                      checked={state.isSnapToGrid}
-                      onChange={toggleSnapToGrid}
-                      className="mr-2"
-                    />
-                    吸附到网格
-                  </label>
+                  
+                  {/* 网格设置 */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      网格设置
+                    </label>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">网格大小: {state.gridSize}px</span>
+                        <input
+                          type="range"
+                          min="10"
+                          max="50"
+                          value={state.gridSize}
+                          onChange={(e) => setGridSize(Number(e.target.value))}
+                          className="w-20"
+                        />
+                      </div>
+                      <label className="flex items-center text-sm text-gray-600">
+                        <input
+                          type="checkbox"
+                          checked={state.isSnapToGrid}
+                          onChange={toggleSnapToGrid}
+                          className="mr-2"
+                        />
+                        吸附到网格
+                      </label>
+                    </div>
+                  </div>
+                  
+                  {/* 背景设置 */}
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      背景设置
+                    </label>
+                    
+                    {/* 预设颜色选项 */}
+                    <div className="mb-3">
+                      <label className="block text-xs text-gray-600 mb-1">预设颜色:</label>
+                      <div className="flex flex-wrap gap-1">
+                        {['#F0F0F0', '#CCCCCC', '#FFEBEE', '#FFF8E1', '#E3F2FD', '#E8F5E9', '#F3E5F5', 'none'].map(color => (
+                          <button
+                            key={color}
+                            className={`w-6 h-6 rounded border border-gray-300 flex items-center justify-center ${
+                              (color === 'none' && state.backgroundColor === 'transparent') || 
+                              (color !== 'none' && state.backgroundColor === color) 
+                                ? 'ring-2 ring-blue-500' 
+                                : ''
+                            }`}
+                            onClick={() => setBackgroundColor(color === 'none' ? 'transparent' : color)}
+                            title={color === 'none' ? '无背景' : color}
+                          >
+                            {color === 'none' ? (
+                              <div 
+                                className="w-4 h-4 rounded-sm relative overflow-hidden"
+                                style={{
+                                  backgroundImage: `
+                                    linear-gradient(45deg, #e5e5e5 25%, transparent 25%, transparent 75%, #e5e5e5 75%, #e5e5e5),
+                                    linear-gradient(45deg, #e5e5e5 25%, transparent 25%, transparent 75%, #e5e5e5 75%, #e5e5e5)
+                                  `,
+                                  backgroundPosition: '0 0, 4px 4px',
+                                  backgroundSize: '8px 8px'
+                                }}
+                              />
+                            ) : (
+                              <div 
+                                className="w-4 h-4 rounded-sm" 
+                                style={{ backgroundColor: color }}
+                              />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    {/* 自定义颜色 */}
+                    <div className="flex items-center">
+                      <span className="text-xs text-gray-600 mr-2">自定义颜色:</span>
+                      <input 
+                        type="color" 
+                        value={state.backgroundColor === 'transparent' ? '#FFFFFF' : state.backgroundColor}
+                        onChange={(e) => setBackgroundColor(e.target.value)}
+                        className="w-8 h-8 border border-gray-300 rounded cursor-pointer"
+                      />
+                    </div>
+                    
+                    {/* 背景图片上传 */}
+                    <div className="mt-2">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleBackgroundImageUpload}
+                        className="hidden"
+                        ref={bgImageInputRef}
+                      />
+                      <button
+                        onClick={() => bgImageInputRef.current?.click()}
+                        className="w-full py-1.5 px-3 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm rounded border border-gray-300 transition-colors"
+                      >
+                        {state.backgroundImage ? '更换背景图片' : '上传背景图片'}
+                      </button>
+                      {state.backgroundImage && (
+                        <button
+                          onClick={() => setBackgroundImage(null)}
+                          className="mt-2 w-full py-1.5 px-3 bg-red-50 hover:bg-red-100 text-red-600 text-sm rounded border border-red-200 transition-colors"
+                        >
+                          移除背景图片
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
+            )}
+            
+            {activeTab === 'design' && (
+              <div className="p-4">
+                <h3 className="text-base font-semibold text-gray-900 mb-3">工具元素</h3>
+                <div className="space-y-3">
+                  {/* 矩形图片框 */}
+                  <DraggableToolElement
+                    type={ItemTypes.TOOL_IMAGE}
+                    toolType="image"
+                    icon={<PhotoIcon className="w-5 h-5 text-gray-600" />}
+                    title="图片框"
+                    description="拖拽添加图片"
+                  />
 
-          {/* 工具元素 */}
-          <div className="p-4 border-b border-gray-200">
-            <h3 className="text-base font-semibold text-gray-900 mb-3">工具元素</h3>
-            <div className="space-y-3">
-              {/* 矩形图片框 */}
-              <DraggableToolElement
-                type={ItemTypes.TOOL_IMAGE}
-                toolType="image"
-                icon={<PhotoIcon className="w-5 h-5 text-gray-600" />}
-                title="图片框"
-                description="拖拽添加图片"
-              />
-
-              {/* 文本框 */}
-              <DraggableToolElement
-                type={ItemTypes.TOOL_TEXT}
-                toolType="text"
-                icon={<DocumentTextIcon className="w-5 h-5 text-gray-600" />}
-                title="文本框"
-                description="拖拽添加文本"
-              />
-            </div>
+                  {/* 文本框 */}
+                  <DraggableToolElement
+                    type={ItemTypes.TOOL_TEXT}
+                    toolType="text"
+                    icon={<DocumentTextIcon className="w-5 h-5 text-gray-600" />}
+                    title="文本框"
+                    description="拖拽添加文本"
+                  />
+                </div>
+              </div>
+            )}
+            
+            {activeTab === 'properties' && (
+              <div className="h-full">
+                <PropertiesPanel />
+              </div>
+            )}
           </div>
-
-          {/* 属性面板 */}
-          <div className="flex-1 overflow-y-auto">
-            <PropertiesPanel />
-          </div>
+          {/* 已移动到标签页中 */}
 
           {/* 使用说明 */}
           {/* <div className="p-4 border-t border-gray-200">

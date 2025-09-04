@@ -94,6 +94,8 @@ export interface CanvasState {
   isSnapToGrid: boolean;
   gridSize: number;
   currentPageId: number | null; // 添加当前页面ID
+  backgroundColor: string; // 添加背景颜色
+  backgroundImage: string | null; // 添加背景图片URL
 }
 
 interface CanvasContextType {
@@ -158,6 +160,8 @@ interface CanvasContextType {
   clearSaveError: () => void;
   
   // Preview and export utilities
+  setBackgroundColor: (color: string) => void;
+  setBackgroundImage: (imageUrl: string | null) => void;
   setPreviewMode: (enabled: boolean) => void;
   exportCanvasAsImage: (format: 'png' | 'jpeg', quality?: number) => Promise<Blob>;
   exportCanvasToPDF: () => Promise<Blob>;
@@ -190,10 +194,12 @@ const initialState: CanvasState = {
   panOffset: { x: 0, y: 0 },
   history: [[]],
   historyIndex: 0,
-  isGridVisible: true, // 默认开启网格
+  isGridVisible: false,
   isSnapToGrid: false,
-  gridSize: 40, // 网格尺寸增加一倍
+  gridSize: 20,
   currentPageId: null,
+  backgroundColor: '#FFFFFF', // 默认白色背景
+  backgroundImage: null, // 无背景图片
 };
 
 interface CanvasProviderProps {
@@ -724,9 +730,21 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
     saveStatus,
     forceSave,
     clearSaveError: clearError,
-    setPreviewMode,
-    exportCanvasAsImage,
-    exportCanvasToPDF,
+  setBackgroundColor: (color: string) => {
+    setState(prev => ({
+      ...prev,
+      backgroundColor: color
+    }));
+  },
+  setBackgroundImage: (imageUrl: string | null) => {
+    setState(prev => ({
+      ...prev,
+      backgroundImage: imageUrl
+    }));
+  },
+  setPreviewMode,
+  exportCanvasAsImage,
+  exportCanvasToPDF,
     getElementById,
     getSelectedElements,
     exportCanvasData,

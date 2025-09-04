@@ -29,6 +29,25 @@ const CanvasRenderer: React.FC<CanvasRendererProps> = ({
   return (
     <>
       {/* Render all canvas elements */}
+      {/* Background layer - added for background image/color support */}
+      {state.backgroundImage ? (
+        <img 
+          src={state.backgroundImage} 
+          alt="Background" 
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ zIndex: -1 }}
+        />
+      ) : (
+        <div 
+          className="absolute inset-0"
+          style={{ 
+            backgroundColor: state.backgroundColor,
+            zIndex: -1 
+          }}
+        />
+      )}
+      
+      {/* Elements layer */}
       <div className={`relative w-full h-full ${className || ''}`}>
         {sortedElements.map((element) => {
           const isSelected = state.selectedElementIds.includes(element.id);
