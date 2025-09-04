@@ -59,14 +59,22 @@ const DragDropCanvas: React.FC<DragDropCanvasProps> = ({
   const handleToolDrop = useCallback((item: ToolDragItem, clientOffset: Point) => {
     const canvasPosition = screenToCanvas(clientOffset.x, clientOffset.y);
     
-    // Snap to grid if enabled
+    // Snap to grid if enabled - align to grid vertices
     let finalPosition = canvasPosition;
     if (state.isSnapToGrid) {
+      const gridSize = state.gridSize;
       finalPosition = {
-        x: Math.round(canvasPosition.x / state.gridSize) * state.gridSize,
-        y: Math.round(canvasPosition.y / state.gridSize) * state.gridSize,
+        x: Math.floor(canvasPosition.x / gridSize + 0.5) * gridSize,
+        y: Math.floor(canvasPosition.y / gridSize + 0.5) * gridSize,
       };
     }
+    
+    // 固定尺寸配置
+    const TEXT_SIZE = { width: 600, height: 200 };
+    const IMAGE_SIZE = { width: 500, height: 500 };
+    
+    // 固定字体大小
+    const FONT_SIZE = 34;
 
     // Create element based on tool type
     let newElement: any; // Will be properly typed as specific element type
@@ -78,8 +86,8 @@ const DragDropCanvas: React.FC<DragDropCanvasProps> = ({
           transform: {
             x: finalPosition.x,
             y: finalPosition.y,
-            width: 150,
-            height: 30,
+            width: TEXT_SIZE.width,
+            height: TEXT_SIZE.height,
             rotation: 0,
             scaleX: 1,
             scaleY: 1,
@@ -87,14 +95,14 @@ const DragDropCanvas: React.FC<DragDropCanvasProps> = ({
           visible: true,
           locked: false,
           zIndex: state.elements.length,
-          content: 'New Text',
-          fontSize: 16,
+          fontSize: FONT_SIZE,
           fontFamily: 'Arial',
           fontWeight: 'normal' as const,
           fontStyle: 'normal' as const,
           color: '#000000',
           textAlign: 'left' as const,
           lineHeight: 1.2,
+          content: '新文本', // 默认中文文本
         };
         break;
         
@@ -104,8 +112,8 @@ const DragDropCanvas: React.FC<DragDropCanvasProps> = ({
           transform: {
             x: finalPosition.x,
             y: finalPosition.y,
-            width: 200,
-            height: 150,
+            width: IMAGE_SIZE.width,
+            height: IMAGE_SIZE.height,
             rotation: 0,
             scaleX: 1,
             scaleY: 1,
@@ -229,11 +237,12 @@ const DragDropCanvas: React.FC<DragDropCanvasProps> = ({
       
       let finalPosition = { x: finalX, y: finalY };
       
-      // Snap to grid if enabled
+      // Snap to grid if enabled - align to grid vertices
       if (state.isSnapToGrid) {
+        const gridSize = state.gridSize;
         finalPosition = {
-          x: Math.round(finalX / state.gridSize) * state.gridSize,
-          y: Math.round(finalY / state.gridSize) * state.gridSize,
+          x: Math.floor(finalX / gridSize + 0.5) * gridSize,
+          y: Math.floor(finalY / gridSize + 0.5) * gridSize,
         };
       }
 
@@ -260,10 +269,13 @@ const DragDropCanvas: React.FC<DragDropCanvasProps> = ({
     let deltaX = canvasDeltaX;
     let deltaY = canvasDeltaY;
 
-    // Snap to grid if enabled
+    // Snap to grid if enabled - align to grid vertices
     if (state.isSnapToGrid) {
-      const snappedX = Math.round((element.transform.x + deltaX) / state.gridSize) * state.gridSize;
-      const snappedY = Math.round((element.transform.y + deltaY) / state.gridSize) * state.gridSize;
+      const gridSize = state.gridSize;
+      const desiredX = element.transform.x + deltaX;
+      const desiredY = element.transform.y + deltaY;
+      const snappedX = Math.floor(desiredX / gridSize + 0.5) * gridSize;
+      const snappedY = Math.floor(desiredY / gridSize + 0.5) * gridSize;
       deltaX = snappedX - element.transform.x;
       deltaY = snappedY - element.transform.y;
     }
@@ -286,6 +298,9 @@ const DragDropCanvas: React.FC<DragDropCanvasProps> = ({
   const handleFileDrop = useCallback((item: FileDragItem, clientOffset: Point) => {
     const canvasPosition = screenToCanvas(clientOffset.x, clientOffset.y);
     
+    // 固定图片尺寸
+    const IMAGE_SIZE = { width: 500, height: 500 };
+
     // Process uploaded files
     item.files.forEach(async (file, index) => {
       if (file.type.startsWith('image/')) {
@@ -312,8 +327,8 @@ const DragDropCanvas: React.FC<DragDropCanvasProps> = ({
             transform: {
               x: finalPosition.x,
               y: finalPosition.y,
-              width: 200,
-              height: 150,
+              width: IMAGE_SIZE.width,
+              height: IMAGE_SIZE.height,
               rotation: 0,
               scaleX: 1,
               scaleY: 1,
@@ -353,8 +368,8 @@ const DragDropCanvas: React.FC<DragDropCanvasProps> = ({
                 transform: {
                   x: finalPosition.x,
                   y: finalPosition.y,
-                  width: 200,
-                  height: 150,
+                  width: IMAGE_SIZE.width,
+                  height: IMAGE_SIZE.height,
                   rotation: 0,
                   scaleX: 1,
                   scaleY: 1,
@@ -532,18 +547,81 @@ const DragDropCanvas: React.FC<DragDropCanvasProps> = ({
         }
       }}
     >
-      {/* Canvas grid overlay */}
+      {/* Enhanced grid overlay with centered origin and axis lines */}
       {state.isGridVisible && (
-        <div 
-          className="absolute inset-0 pointer-events-none opacity-30"
-          style={{
-            backgroundImage: `
-              linear-gradient(to right, #ddd 1px, transparent 1px),
-              linear-gradient(to bottom, #ddd 1px, transparent 1px)
-            `,
-            backgroundSize: `${state.gridSize * state.displayScale}px ${state.gridSize * state.displayScale}px`,
-          }}
-        />
+        <svg 
+          className="absolute inset-0 pointer-events-none"
+          width={displaySize.width * state.displayScale}
+          height={displaySize.height * state.displayScale}
+          style={{ opacity: 0.3 }}
+        >
+          {/* Calculate center position */}
+          {(() => {
+            const width = displaySize.width * state.displayScale;
+            const height = displaySize.height * state.displayScale;
+            const centerX = width / 2;
+            const centerY = height / 2;
+            const gridSize = state.gridSize * state.displayScale;
+            const elements = [];
+            
+            // Calculate starting points to ensure origin is a grid vertex
+            const startX = centerX - Math.floor(centerX / gridSize) * gridSize;
+            const startY = centerY - Math.floor(centerY / gridSize) * gridSize;
+            
+            // Draw vertical grid lines
+            for (let x = startX; x <= width; x += gridSize) {
+              // Calculate distance from origin in grid units
+              const gridUnitsX = Math.round((x - centerX) / gridSize);
+              const isAxis = Math.abs(x - centerX) < 1; // X-axis
+              const isMajorLine = gridUnitsX !== 0 && Math.abs(gridUnitsX) % 4 === 0;
+              
+              elements.push(
+                <line
+                  key={`v-${x}`}
+                  x1={x}
+                  y1={0}
+                  x2={x}
+                  y2={height}
+                  stroke={isAxis ? '#666' : isMajorLine ? '#999' : '#bbb'}
+                  strokeWidth={isAxis ? 2 : isMajorLine ? 1.5 : 1}
+                />
+              );
+            }
+            
+            // Draw horizontal grid lines
+            for (let y = startY; y <= height; y += gridSize) {
+              // Calculate distance from origin in grid units
+              const gridUnitsY = Math.round((y - centerY) / gridSize);
+              const isAxis = Math.abs(y - centerY) < 1; // Y-axis
+              const isMajorLine = gridUnitsY !== 0 && Math.abs(gridUnitsY) % 4 === 0;
+              
+              elements.push(
+                <line
+                  key={`h-${y}`}
+                  x1={0}
+                  y1={y}
+                  x2={width}
+                  y2={y}
+                  stroke={isAxis ? '#666' : isMajorLine ? '#999' : '#bbb'}
+                  strokeWidth={isAxis ? 2 : isMajorLine ? 1.5 : 1}
+                />
+              );
+            }
+            
+            // Highlight origin with red dot
+            elements.push(
+              <circle
+                key="origin"
+                cx={centerX}
+                cy={centerY}
+                r={4}
+                fill="#ff0000"
+              />
+            );
+            
+            return elements;
+          })()}
+        </svg>
       )}
 
       {/* Canvas content */}

@@ -190,9 +190,9 @@ const initialState: CanvasState = {
   panOffset: { x: 0, y: 0 },
   history: [[]],
   historyIndex: 0,
-  isGridVisible: false,
+  isGridVisible: true, // 默认开启网格
   isSnapToGrid: false,
-  gridSize: 20,
+  gridSize: 40, // 网格尺寸增加一倍
   currentPageId: null,
 };
 
