@@ -48,24 +48,24 @@ const DragDropCanvas: React.FC<DragDropCanvasProps> = ({
     return { x, y };
   }, [state.zoom, state.displayScale]);
 
-  // Convert canvas coordinates to screen coordinates
-  const canvasToScreen = useCallback((canvasX: number, canvasY: number): Point => {
-    const x = canvasX * state.zoom * state.displayScale;
-    const y = canvasY * state.zoom * state.displayScale;
-    return { x, y };
-  }, [state.zoom, state.displayScale]);
 
   // Handle tool drop (creating new elements)
   const handleToolDrop = useCallback((item: ToolDragItem, clientOffset: Point) => {
     const canvasPosition = screenToCanvas(clientOffset.x, clientOffset.y);
     
-    // Snap to grid if enabled - align to grid vertices
+    // Snap to grid if enabled - align to visible grid vertices
     let finalPosition = canvasPosition;
     if (state.isSnapToGrid) {
       const gridSize = state.gridSize;
+      // Calculate grid origin (same as grid visualization)
+      const gridOrigin = {
+        x: Math.floor(state.canvasSize.width / 2 / gridSize) * gridSize,
+        y: Math.floor(state.canvasSize.height / 2 / gridSize) * gridSize,
+      };
+      // Calculate snapped position relative to grid origin
       finalPosition = {
-        x: Math.floor(canvasPosition.x / gridSize + 0.5) * gridSize,
-        y: Math.floor(canvasPosition.y / gridSize + 0.5) * gridSize,
+        x: gridOrigin.x + Math.round((canvasPosition.x - gridOrigin.x) / gridSize) * gridSize,
+        y: gridOrigin.y + Math.round((canvasPosition.y - gridOrigin.y) / gridSize) * gridSize,
       };
     }
     
@@ -207,6 +207,7 @@ const DragDropCanvas: React.FC<DragDropCanvasProps> = ({
 
   // Handle canvas element drop (moving existing elements)
   const handleElementDrop = useCallback((item: CanvasElementDragItem, monitor: any) => {
+    console.log('[DEBUG] handleElementDrop called, isSnapToGrid:', state.isSnapToGrid, 'isCopyOperation:', item.isCopyOperation);
     const differenceFromInitialOffset = monitor.getDifferenceFromInitialOffset();
     
     if (!differenceFromInitialOffset) return;
@@ -237,12 +238,18 @@ const DragDropCanvas: React.FC<DragDropCanvasProps> = ({
       
       let finalPosition = { x: finalX, y: finalY };
       
-      // Snap to grid if enabled - align to grid vertices
+      // Snap to grid if enabled - align to visible grid vertices
       if (state.isSnapToGrid) {
         const gridSize = state.gridSize;
+        // Calculate grid origin (same as grid visualization)
+        const gridOrigin = {
+          x: Math.floor(state.canvasSize.width / 2 / gridSize) * gridSize,
+          y: Math.floor(state.canvasSize.height / 2 / gridSize) * gridSize,
+        };
+        // Calculate snapped position relative to grid origin
         finalPosition = {
-          x: Math.floor(finalX / gridSize + 0.5) * gridSize,
-          y: Math.floor(finalY / gridSize + 0.5) * gridSize,
+          x: gridOrigin.x + Math.round((finalX - gridOrigin.x) / gridSize) * gridSize,
+          y: gridOrigin.y + Math.round((finalY - gridOrigin.y) / gridSize) * gridSize,
         };
       }
 
@@ -269,13 +276,22 @@ const DragDropCanvas: React.FC<DragDropCanvasProps> = ({
     let deltaX = canvasDeltaX;
     let deltaY = canvasDeltaY;
 
-    // Snap to grid if enabled - align to grid vertices
+    // Snap to grid if enabled - align to visible grid vertices
     if (state.isSnapToGrid) {
+
+      console.log('Snapping to grid...');
       const gridSize = state.gridSize;
+      // Calculate grid origin (same as grid visualization)
+      const gridOrigin = {
+        x: state.canvasSize.width / 2,
+        y: state.canvasSize.height / 2,
+      };
+      // Calculate desired position
       const desiredX = element.transform.x + deltaX;
       const desiredY = element.transform.y + deltaY;
-      const snappedX = Math.floor(desiredX / gridSize + 0.5) * gridSize;
-      const snappedY = Math.floor(desiredY / gridSize + 0.5) * gridSize;
+      // Calculate snapped position relative to grid origin
+      const snappedX = gridOrigin.x + Math.round((desiredX - gridOrigin.x) / gridSize) * gridSize;
+      const snappedY = gridOrigin.y + Math.round((desiredY - gridOrigin.y) / gridSize) * gridSize;
       deltaX = snappedX - element.transform.x;
       deltaY = snappedY - element.transform.y;
     }
