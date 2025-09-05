@@ -8,6 +8,7 @@ export interface Page {
   albumId: number;
   createdAt: string;
   updatedAt: string;
+  background?: any; // 页面背景配置
 }
 
 export interface PageCanvasData {

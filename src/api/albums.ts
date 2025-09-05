@@ -1,4 +1,5 @@
 import api from './auth';
+import type { Page } from './pages';
 
 export interface Album {
   id: number;
@@ -9,27 +10,15 @@ export interface Album {
   pages: Page[];
   createdAt: string;
   updatedAt: string;
-  backgroundColor?: string; // 相册背景色
-  backgroundImage?: string; // 相册背景图片URL
   background?: any; // 统一背景配置
   isUseGlobalBackground?: boolean; // 是否使用全局背景设置
-}
-
-export interface Page {
-  id: number;
-  title: string;
-  content: string;
-  albumId: number;
-  createdAt: string;
-  updatedAt: string;
-  backgroundColor?: string; // 页面背景色
-  backgroundImage?: string; // 页面背景图片URL
 }
 
 export const albumsAPI = {
   // 获取用户的所有相册
   getAll: async (): Promise<Album[]> => {
     const response = await api.get('/albums');
+    console.log('获取用户的所有相册:', response.data);
     return response.data;
   },
 

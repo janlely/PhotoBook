@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '@headlessui/react';
 import { albumsAPI } from '../api/albums';
-import type { Album, Page } from '../api/albums';
+import type { Album } from '../api/albums';
+import type { Page } from '../api/pages';
 import { ChevronRightIcon, ChevronDownIcon, FolderIcon, PlusIcon, DocumentIcon, MinusIcon } from '@heroicons/react/24/outline';
 import { AlbumExportButton } from './AlbumExportButton';
 

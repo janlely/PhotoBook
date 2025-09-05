@@ -6,7 +6,8 @@ import AlbumTree from '../components/AlbumTree';
 import DragDropCanvas from '../components/DragDropCanvas';
 import PropertiesPanel from '../components/PropertiesPanel';
 import BackgroundSettingsPanel from '../components/BackgroundSettingsPanel';
-import type { Album, Page } from '../api/albums';
+import type { Album } from '../api/albums';
+import type { Page } from '../api/pages';
 import { albumsAPI } from '../api/albums';
 import { pagesAPI } from '../api/pages';
 import { uploadImage } from '../api/upload';
@@ -457,6 +458,7 @@ const HomePageContent: React.FC = () => {
 
   const handleAlbumSelect = (album: Album) => {
     setSelectedAlbum(album);
+    setCurrentAlbumId(album.id); // 设置当前相册ID
     setSelectedPage(null); // 切换相册时清空页面选择
     setCurrentPageId(null); // 清空当前页面ID
   };
@@ -468,6 +470,11 @@ const HomePageContent: React.FC = () => {
     setCurrentPageId(page.id);
     if (selectedAlbum) {
       setCurrentAlbumId(selectedAlbum.id);
+    } else {
+      // 如果没有选中的相册，尝试从页面数据中获取相册ID
+      // 这里可能需要从API获取页面所属的相册信息
+      console.warn('No selected album, cannot set currentAlbumId');
+      setCurrentAlbumId(null);
     }
     
     try {

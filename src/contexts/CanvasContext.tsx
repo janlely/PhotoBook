@@ -694,13 +694,29 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
   const loadCanvasData = useCallback(async (data: PageCanvasData, pageId?: number, albumId?: number) => {
     let background = initialState.background;
 
-    // Load background data based on scope
+    console.log('加载数据:', data, 'pageId:', pageId, 'albumId:', albumId);
+    // Load background data based on album's isUseGlobalBackground field
     if (albumId) {
-      // If albumId is provided, load album background (global for all pages)
       try {
         const { albumsAPI } = await import('../api/albums');
         const albumBackgroundData = await albumsAPI.getBackground(albumId);
-        background = albumBackgroundData.background;
+        console.log('DEBUG: albumBackgroundData:', albumBackgroundData);
+
+        if (albumBackgroundData.isUseGlobalBackground) {
+          // Use global background (from page)
+          if (pageId) {
+            try {
+              const { pagesAPI } = await import('../api/pages');
+              const pageBackgroundData = await pagesAPI.getBackground(pageId);
+              background = pageBackgroundData.background;
+            } catch (error) {
+              console.error('Failed to load page background data:', error);
+            }
+          }
+        } else {
+          // Use album background
+          background = albumBackgroundData.background;
+        }
       } catch (error) {
         console.error('Failed to load album background data:', error);
       }
@@ -713,6 +729,11 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
       } catch (error) {
         console.error('Failed to load page background data:', error);
       }
+    }
+
+    // Fallback to default background if data is null or empty
+    if (!background || (typeof background === 'object' && Object.keys(background).length === 0)) {
+      background = initialState.background;
     }
 
     setState(prev => {

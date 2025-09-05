@@ -12,19 +12,37 @@ router.get('/', authenticateToken, async (req: AuthRequest, res) => {
     
     const albums = await prisma.album.findMany({
       where: { userId },
-      include: {
-        children: true,
+      select: {
+        id: true,
+        title: true,
+        parentId: true,
+        userId: true,
+        createdAt: true,
+        updatedAt: true,
+        background: true,
+        isUseGlobalBackground: true,
+        children: {
+          select: {
+            id: true,
+            title: true,
+            parentId: true,
+            createdAt: true,
+            updatedAt: true
+          }
+        },
         pages: {
           select: {
             id: true,
             title: true,
             createdAt: true,
-            updatedAt: true
+            updatedAt: true,
+            background: true
           }
         }
       }
     });
     
+    console.log('获取用户的所有相册:', JSON.stringify(albums));
     res.json(albums);
   } catch (error) {
     console.error('获取相册错误:', error);
@@ -44,9 +62,32 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
         parentId: parentId || null,
         userId: userId!
       },
-      include: {
-        children: true,
-        pages: true
+      select: {
+        id: true,
+        title: true,
+        parentId: true,
+        userId: true,
+        createdAt: true,
+        updatedAt: true,
+        background: true,
+        isUseGlobalBackground: true,
+        children: {
+          select: {
+            id: true,
+            title: true,
+            parentId: true,
+            createdAt: true,
+            updatedAt: true
+          }
+        },
+        pages: {
+          select: {
+            id: true,
+            title: true,
+            createdAt: true,
+            updatedAt: true
+          }
+        }
       }
     });
     
@@ -68,10 +109,38 @@ router.get('/:id', authenticateToken, async (req: AuthRequest, res) => {
         id: albumId,
         userId
       },
-      include: {
-        children: true,
-        pages: true,
-        parent: true
+      select: {
+        id: true,
+        title: true,
+        parentId: true,
+        userId: true,
+        createdAt: true,
+        updatedAt: true,
+        background: true,
+        isUseGlobalBackground: true,
+        children: {
+          select: {
+            id: true,
+            title: true,
+            parentId: true,
+            createdAt: true,
+            updatedAt: true
+          }
+        },
+        pages: {
+          select: {
+            id: true,
+            title: true,
+            createdAt: true,
+            updatedAt: true
+          }
+        },
+        parent: {
+          select: {
+            id: true,
+            title: true
+          }
+        }
       }
     });
     
@@ -107,10 +176,38 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res) => {
         title,
         parentId: parentId || null
       },
-      include: {
-        children: true,
-        pages: true,
-        parent: true
+      select: {
+        id: true,
+        title: true,
+        parentId: true,
+        userId: true,
+        createdAt: true,
+        updatedAt: true,
+        background: true,
+        isUseGlobalBackground: true,
+        children: {
+          select: {
+            id: true,
+            title: true,
+            parentId: true,
+            createdAt: true,
+            updatedAt: true
+          }
+        },
+        pages: {
+          select: {
+            id: true,
+            title: true,
+            createdAt: true,
+            updatedAt: true
+          }
+        },
+        parent: {
+          select: {
+            id: true,
+            title: true
+          }
+        }
       }
     });
     
@@ -210,8 +307,6 @@ router.get('/:id/background', authenticateToken, async (req: AuthRequest, res) =
       },
       select: {
         background: true,
-        backgroundColor: true,
-        backgroundImage: true,
         isUseGlobalBackground: true
       }
     });
@@ -222,24 +317,6 @@ router.get('/:id/background', authenticateToken, async (req: AuthRequest, res) =
 
     // 向后兼容：如果没有新background字段但有旧字段，返回转换后的格式
     let background = album.background;
-    if (!background) {
-      if (album.backgroundImage) {
-        background = {
-          type: 'image',
-          url: album.backgroundImage
-        };
-      } else if (album.backgroundColor) {
-        background = {
-          type: 'solid',
-          color: album.backgroundColor
-        };
-      } else {
-        background = {
-          type: 'solid',
-          color: '#FFFFFF'
-        };
-      }
-    }
 
     res.json({
       background,

@@ -22,7 +22,18 @@ router.get('/album/:albumId', authenticateToken, async (req: AuthRequest, res) =
     
     const pages = await prisma.page.findMany({
       where: { albumId },
-      orderBy: { createdAt: 'asc' }
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        title: true,
+        content: true,
+        albumId: true,
+        createdAt: true,
+        updatedAt: true,
+        background: true,
+        backgroundColor: true,
+        backgroundImage: true
+      }
     });
     
     res.json(pages);
@@ -78,6 +89,17 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
         title,
         content: content || '{}',
         albumId
+      },
+      select: {
+        id: true,
+        title: true,
+        content: true,
+        albumId: true,
+        createdAt: true,
+        updatedAt: true,
+        background: true,
+        backgroundColor: true,
+        backgroundImage: true
       }
     });
     
@@ -113,6 +135,17 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res) => {
       data: {
         title,
         content
+      },
+      select: {
+        id: true,
+        title: true,
+        content: true,
+        albumId: true,
+        createdAt: true,
+        updatedAt: true,
+        background: true,
+        backgroundColor: true,
+        backgroundImage: true
       }
     });
     
@@ -166,6 +199,17 @@ router.put('/:id/canvas', authenticateToken, async (req: AuthRequest, res) => {
         album: {
           userId
         }
+      },
+      select: {
+        id: true,
+        title: true,
+        content: true,
+        albumId: true,
+        createdAt: true,
+        updatedAt: true,
+        background: true,
+        backgroundColor: true,
+        backgroundImage: true
       }
     });
     
@@ -184,6 +228,17 @@ router.put('/:id/canvas', authenticateToken, async (req: AuthRequest, res) => {
       where: { id: pageId },
       data: {
         content: JSON.stringify(canvasData)
+      },
+      select: {
+        id: true,
+        title: true,
+        content: true,
+        albumId: true,
+        createdAt: true,
+        updatedAt: true,
+        background: true,
+        backgroundColor: true,
+        backgroundImage: true
       }
     });
     
@@ -262,6 +317,17 @@ router.put('/:id/background', authenticateToken, async (req: AuthRequest, res) =
       where: { id: pageId },
       data: {
         background: background || null
+      },
+      select: {
+        id: true,
+        title: true,
+        content: true,
+        albumId: true,
+        createdAt: true,
+        updatedAt: true,
+        background: true,
+        backgroundColor: true,
+        backgroundImage: true
       }
     });
 
