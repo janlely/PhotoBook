@@ -40,6 +40,7 @@ model Album {
   backgroundColor String?   // 相册背景色（已废弃，保留用于迁移）
   backgroundImage String?   // 相册背景图片URL（已废弃，保留用于迁移）
   background      Json?     // 新的统一背景配置
+  isUseGlobalBackground Boolean @default(false) // 是否使用全局背景设置
 }
 
 model Page {

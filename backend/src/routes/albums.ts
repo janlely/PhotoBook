@@ -211,7 +211,8 @@ router.get('/:id/background', authenticateToken, async (req: AuthRequest, res) =
       select: {
         background: true,
         backgroundColor: true,
-        backgroundImage: true
+        backgroundImage: true,
+        isUseGlobalBackground: true
       }
     });
 
@@ -240,9 +241,44 @@ router.get('/:id/background', authenticateToken, async (req: AuthRequest, res) =
       }
     }
 
-    res.json({ background });
+    res.json({
+      background,
+      isUseGlobalBackground: album.isUseGlobalBackground
+    });
   } catch (error) {
     console.error('获取相册背景错误:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+});
+
+// 更新相册全局背景设置
+router.put('/:id/global-background', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user?.userId;
+    const albumId = parseInt(req.params.id);
+    const { isUseGlobalBackground } = req.body;
+
+    const album = await prisma.album.findFirst({
+      where: { id: albumId, userId }
+    });
+
+    if (!album) {
+      return res.status(404).json({ error: '相册不存在' });
+    }
+
+    const updatedAlbum = await prisma.album.update({
+      where: { id: albumId },
+      data: {
+        isUseGlobalBackground: isUseGlobalBackground || false
+      }
+    });
+
+    res.json({
+      message: '相册全局背景设置更新成功',
+      isUseGlobalBackground: updatedAlbum.isUseGlobalBackground
+    });
+  } catch (error) {
+    console.error('更新相册全局背景设置错误:', error);
     res.status(500).json({ error: '服务器内部错误' });
   }
 });

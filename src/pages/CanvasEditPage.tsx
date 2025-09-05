@@ -436,9 +436,10 @@ const HomePageContent: React.FC = () => {
    setGridSize,
    state,
    setCurrentPageId,
+   setCurrentAlbumId,
    loadCanvasData,
    setCanvasSize
- } = useCanvas();
+  } = useCanvas();
 
   // 加载相册数据
   const loadAlbums = async () => {
@@ -462,15 +463,18 @@ const HomePageContent: React.FC = () => {
 
   const handlePageSelect = async (page: Page) => {
     setSelectedPage(page);
-    
-    // 设置当前页面ID
+
+    // 设置当前页面ID和相册ID
     setCurrentPageId(page.id);
+    if (selectedAlbum) {
+      setCurrentAlbumId(selectedAlbum.id);
+    }
     
     try {
       // 加载页面的画布数据
       console.log('加载页面画布数据:', page.id);
       const canvasData = await pagesAPI.getCanvas(page.id);
-      loadCanvasData(canvasData);
+      loadCanvasData(canvasData, page.id, selectedAlbum?.id);
       console.log('画布数据加载成功:', canvasData);
     } catch (error) {
       console.error('加载画布数据失败:', error);

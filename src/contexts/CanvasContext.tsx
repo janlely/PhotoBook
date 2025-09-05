@@ -95,6 +95,7 @@ export interface CanvasState {
   isSnapToGrid: boolean;
   gridSize: number;
   currentPageId: number | null; // 添加当前页面ID
+  currentAlbumId: number | null; // 添加当前相册ID
   background: BackgroundStyle; // 统一背景配置
   backgroundScope: 'page' | 'album'; // 背景应用范围
 }
@@ -153,7 +154,8 @@ interface CanvasContextType {
   
   // Page operations
   setCurrentPageId: (pageId: number | null) => void;
-  loadCanvasData: (data: PageCanvasData, pageId?: number) => Promise<void>;
+  setCurrentAlbumId: (albumId: number | null) => void;
+  loadCanvasData: (data: PageCanvasData, pageId?: number, albumId?: number) => Promise<void>;
   
   // Auto-save operations
   saveStatus: SaveStatus;
@@ -199,6 +201,7 @@ const initialState: CanvasState = {
   isSnapToGrid: false,
   gridSize: 20,
   currentPageId: null,
+  currentAlbumId: null,
   background: {
     type: 'solid',
     color: '#FFFFFF'
@@ -680,17 +683,35 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
     }));
   }, []);
 
-  const loadCanvasData = useCallback(async (data: PageCanvasData, pageId?: number) => {
-    // Load background data if pageId is provided
+  const setCurrentAlbumId = useCallback((albumId: number | null) => {
+    setState(prev => ({
+      ...prev,
+      currentAlbumId: albumId,
+    }));
+  }, []);
+
+
+  const loadCanvasData = useCallback(async (data: PageCanvasData, pageId?: number, albumId?: number) => {
     let background = initialState.background;
-    if (pageId) {
+
+    // Load background data based on scope
+    if (albumId) {
+      // If albumId is provided, load album background (global for all pages)
+      try {
+        const { albumsAPI } = await import('../api/albums');
+        const albumBackgroundData = await albumsAPI.getBackground(albumId);
+        background = albumBackgroundData.background;
+      } catch (error) {
+        console.error('Failed to load album background data:', error);
+      }
+    } else if (pageId) {
+      // If only pageId is provided, load page-specific background
       try {
         const { pagesAPI } = await import('../api/pages');
         const backgroundData = await pagesAPI.getBackground(pageId);
         background = backgroundData.background;
       } catch (error) {
-        console.error('Failed to load background data:', error);
-        // Keep default background if loading fails
+        console.error('Failed to load page background data:', error);
       }
     }
 
@@ -744,6 +765,7 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
     toggleSnapToGrid,
     setGridSize,
     setCurrentPageId,
+    setCurrentAlbumId,
     loadCanvasData,
     saveStatus,
     forceSave,
@@ -754,12 +776,12 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
       background
     }));
   },
-  setBackgroundScope: (scope: 'page' | 'album') => {
+  setBackgroundScope: useCallback((scope: 'page' | 'album') => {
     setState(prev => ({
       ...prev,
       backgroundScope: scope
     }));
-  },
+  }, []),
   setPreviewMode,
   exportCanvasAsImage,
   exportCanvasToPDF,

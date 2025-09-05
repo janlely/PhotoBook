@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import { useCanvas } from '../contexts/CanvasContext';
 import type { SolidStyle, GradientStyle, ImageStyle } from '../types/backgroundStyle';
 import { pagesAPI } from '../api/pages';
+import { albumsAPI } from '../api/albums';
 import { uploadImage } from '../api/upload';
 import BackgroundScopeSelector from './BackgroundScopeSelector';
 import ToggleSelector from './ToggleSelector';
@@ -17,14 +18,8 @@ const BackgroundSettingsPanel: React.FC = () => {
     };
     setBackground(newBackground);
 
-    // Save to backend if we have a current page
-    if (state.currentPageId) {
-      try {
-        await pagesAPI.updateBackground(state.currentPageId, newBackground);
-      } catch (error) {
-        console.error('Failed to save background:', error);
-      }
-    }
+    // Save to backend based on scope and global background setting
+    await saveBackgroundToBackend(newBackground);
   };
 
   const handleImageChange = async (url: string) => {
@@ -35,27 +30,15 @@ const BackgroundSettingsPanel: React.FC = () => {
     };
     setBackground(newBackground);
 
-    // Save to backend if we have a current page
-    if (state.currentPageId) {
-      try {
-        await pagesAPI.updateBackground(state.currentPageId, newBackground);
-      } catch (error) {
-        console.error('Failed to save background:', error);
-      }
-    }
+    // Save to backend based on scope and global background setting
+    await saveBackgroundToBackend(newBackground);
   };
 
   const handleGradientChange = async (gradient: GradientStyle) => {
     setBackground(gradient);
 
-    // Save to backend if we have a current page
-    if (state.currentPageId) {
-      try {
-        await pagesAPI.updateBackground(state.currentPageId, gradient);
-      } catch (error) {
-        console.error('Failed to save background:', error);
-      }
-    }
+    // Save to backend based on scope and global background setting
+    await saveBackgroundToBackend(gradient);
   };
 
   const handleBackgroundImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -75,6 +58,20 @@ const BackgroundSettingsPanel: React.FC = () => {
     } finally {
       // Reset file input
       if (event.target) event.target.value = '';
+    }
+  };
+
+  const saveBackgroundToBackend = async (background: any) => {
+    try {
+      if (state.backgroundScope === 'page' && state.currentPageId) {
+        // Save to page - affects only current page
+        await pagesAPI.updateBackground(state.currentPageId, background);
+      } else if (state.backgroundScope === 'album' && state.currentAlbumId) {
+        // Save to album - affects all pages in the album (global background)
+        await albumsAPI.updateBackground(state.currentAlbumId, background);
+      }
+    } catch (error) {
+      console.error('Failed to save background:', error);
     }
   };
 
@@ -321,6 +318,7 @@ const BackgroundSettingsPanel: React.FC = () => {
       </div>
 
       <div className="space-y-4">
+
         {/* Background Type Selection */}
         <ToggleSelector
           options={[
