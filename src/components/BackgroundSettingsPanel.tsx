@@ -66,9 +66,15 @@ const BackgroundSettingsPanel: React.FC = () => {
       if (state.backgroundScope === 'page' && state.currentPageId) {
         // Save to page - affects only current page
         await pagesAPI.updateBackground(state.currentPageId, background);
+        // Update album's global background setting to use page background
+        if (state.currentAlbumId) {
+          await albumsAPI.updateGlobalBackgroundSetting(state.currentAlbumId, true);
+        }
       } else if (state.backgroundScope === 'album' && state.currentAlbumId) {
         // Save to album - affects all pages in the album (global background)
         await albumsAPI.updateBackground(state.currentAlbumId, background);
+        // Update album's global background setting to use album background
+        await albumsAPI.updateGlobalBackgroundSetting(state.currentAlbumId, false);
       }
     } catch (error) {
       console.error('Failed to save background:', error);

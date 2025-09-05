@@ -4,6 +4,7 @@ import { useAutoSave } from '../hooks/useAutoSave';
 import type { SaveStatus } from '../hooks/useAutoSave';
 import type { PageCanvasData } from '../api/pages';
 import type { BackgroundStyle } from '../types/backgroundStyle';
+import { albumsAPI } from '../api/albums';
 
 // Base types for canvas elements
 export interface Point {
@@ -693,6 +694,7 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
 
   const loadCanvasData = useCallback(async (data: PageCanvasData, pageId?: number, albumId?: number) => {
     let background = initialState.background;
+    let backgroundScope = initialState.backgroundScope;
 
     console.log('加载数据:', data, 'pageId:', pageId, 'albumId:', albumId);
     // Load background data based on album's isUseGlobalBackground field
@@ -704,6 +706,7 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
 
         if (albumBackgroundData.isUseGlobalBackground) {
           // Use global background (from page)
+          backgroundScope = 'page';
           if (pageId) {
             try {
               const { pagesAPI } = await import('../api/pages');
@@ -715,6 +718,7 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
           }
         } else {
           // Use album background
+          backgroundScope = 'album';
           background = albumBackgroundData.background;
         }
       } catch (error) {
@@ -722,6 +726,7 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
       }
     } else if (pageId) {
       // If only pageId is provided, load page-specific background
+      backgroundScope = 'page';
       try {
         const { pagesAPI } = await import('../api/pages');
         const backgroundData = await pagesAPI.getBackground(pageId);
@@ -743,6 +748,7 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
         elements: data.elements || [],
         canvasSize: data.canvasSize || prev.canvasSize,
         background,
+        backgroundScope,
         selectedElementIds: [],
         // 重置历史记录
         history: [data.elements || []],
@@ -797,12 +803,25 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
       background
     }));
   },
-  setBackgroundScope: useCallback((scope: 'page' | 'album') => {
+  setBackgroundScope: useCallback(async (scope: 'page' | 'album') => {
     setState(prev => ({
       ...prev,
       backgroundScope: scope
     }));
-  }, []),
+
+    // Sync with backend's isUseGlobalBackground setting
+    try {
+      if (scope === 'page' && state.currentAlbumId) {
+        // When switching to page scope, set album to use global (page) background
+        await albumsAPI.updateGlobalBackgroundSetting(state.currentAlbumId, true);
+      } else if (scope === 'album' && state.currentAlbumId) {
+        // When switching to album scope, set album to use album background
+        await albumsAPI.updateGlobalBackgroundSetting(state.currentAlbumId, false);
+      }
+    } catch (error) {
+      console.error('Failed to sync background scope with backend:', error);
+    }
+  }, [state.currentAlbumId]),
   setPreviewMode,
   exportCanvasAsImage,
   exportCanvasToPDF,
