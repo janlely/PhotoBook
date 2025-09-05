@@ -5,6 +5,7 @@ import { ChevronDownIcon } from '@heroicons/react/20/solid';
 import AlbumTree from '../components/AlbumTree';
 import DragDropCanvas from '../components/DragDropCanvas';
 import PropertiesPanel from '../components/PropertiesPanel';
+import BackgroundSettingsPanel from '../components/BackgroundSettingsPanel';
 import type { Album, Page } from '../api/albums';
 import { albumsAPI } from '../api/albums';
 import { pagesAPI } from '../api/pages';
@@ -12,7 +13,7 @@ import { uploadImage } from '../api/upload';
 import { DocumentTextIcon, PhotoIcon } from '@heroicons/react/24/outline';
 import { ItemTypes } from '../types/dnd';
 import type { ToolDragItem } from '../types/dnd';
-import type { CanvasElement, ImageElement } from '../contexts/CanvasContext';
+import type { CanvasElement } from '../contexts/CanvasContext';
 
 // 自定义缩放控件组件
 const ZoomControl: React.FC<{
@@ -172,7 +173,7 @@ const DraggableToolElement: React.FC<{
   onElementDoubleClick,
   onImageUpload
 }) => {
-  const { updateElement, getElementById, state, setZoom, toggleGrid } = useCanvas();
+  const { updateElement, state, setZoom, toggleGrid } = useCanvas();
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   
   // 计算并设置最佳缩放比例
@@ -423,7 +424,6 @@ const HomePageContent: React.FC = () => {
   const [selectedPage, setSelectedPage] = useState<Page | null>(null);
   const [albums, setAlbums] = useState<Album[]>([]);
   const [activeTab, setActiveTab] = useState<'design' | 'properties' | 'settings'>('settings');
-  const bgImageInputRef = useRef<HTMLInputElement>(null);
   
   // 用于图片上传的文件输入引用
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -431,20 +431,14 @@ const HomePageContent: React.FC = () => {
   const currentImageElementRef = useRef<string | null>(null);
   
   // 获取画布状态和操作函数
-  const { 
-  toggleGrid, 
-  toggleSnapToGrid, 
-  setGridSize, 
-  state, 
-  setCurrentPageId, 
-  loadCanvasData, 
-  saveStatus, 
-  forceSave, 
-  clearSaveError, 
-  setCanvasSize,
-  setBackgroundColor,
-  setBackgroundImage
-} = useCanvas();
+  const {
+   toggleSnapToGrid,
+   setGridSize,
+   state,
+   setCurrentPageId,
+   loadCanvasData,
+   setCanvasSize
+ } = useCanvas();
 
   // 加载相册数据
   const loadAlbums = async () => {
@@ -585,26 +579,6 @@ const HomePageContent: React.FC = () => {
   };
   
   // 图片上传处理函数  
-  // 处理背景图片上传
-  const handleBackgroundImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file || !file.type.startsWith('image/')) return;
-    
-    try {
-      // 使用后台 API 上传图片
-      const result = await uploadImage(file);
-      console.log('背景图片上传成功:', result);
-      
-      // 设置背景图片URL
-      setBackgroundImage(result.image.url);
-    } catch (error) {
-      console.error('背景图片上传失败:', error);
-      alert('背景图片上传失败: ' + (error instanceof Error ? error.message : '未知错误'));
-    } finally {
-      // 重置文件输入
-      if (event.target) event.target.value = '';
-    }
-  };
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     // 清空文件输入，为下一次选择做准备
@@ -657,8 +631,8 @@ const HomePageContent: React.FC = () => {
           <div className="flex border-b border-gray-200">
             <button
               className={`flex-1 py-2 text-sm font-medium ${
-                activeTab === 'settings' 
-                  ? 'text-blue-600 border-b-2 border-blue-600' 
+                activeTab === 'settings'
+                  ? 'text-blue-600 border-b-2 border-blue-600'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
               onClick={() => setActiveTab('settings')}
@@ -667,8 +641,8 @@ const HomePageContent: React.FC = () => {
             </button>
             <button
               className={`flex-1 py-2 text-sm font-medium ${
-                activeTab === 'design' 
-                  ? 'text-blue-600 border-b-2 border-blue-600' 
+                activeTab === 'design'
+                  ? 'text-blue-600 border-b-2 border-blue-600'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
               onClick={() => setActiveTab('design')}
@@ -677,8 +651,8 @@ const HomePageContent: React.FC = () => {
             </button>
             <button
               className={`flex-1 py-2 text-sm font-medium ${
-                activeTab === 'properties' 
-                  ? 'text-blue-600 border-b-2 border-blue-600' 
+                activeTab === 'properties'
+                  ? 'text-blue-600 border-b-2 border-blue-600'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
               onClick={() => setActiveTab('properties')}
@@ -691,9 +665,10 @@ const HomePageContent: React.FC = () => {
           <div className="flex-1 overflow-y-auto">
             {activeTab === 'settings' && (
               <div className="p-4">
-                <h3 className="text-base font-semibold text-gray-900 mb-3">画布设置</h3>
-                <div className="space-y-4">
-                  <div>
+                <h3 className="text-base font-semibold text-gray-900 mb-4">画布设置</h3>
+                <div className="space-y-6">
+                  {/* 尺寸选择 */}
+                  <div className="pb-4 border-b border-gray-200">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       尺寸选择
                     </label>
@@ -721,9 +696,9 @@ const HomePageContent: React.FC = () => {
                       <option value="800x600">自定义小尺寸 (800 × 600)</option>
                     </select>
                   </div>
-                  
+
                   {/* 网格设置 */}
-                  <div>
+                  <div className="pb-4 border-b border-gray-200">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       网格设置
                     </label>
@@ -750,87 +725,10 @@ const HomePageContent: React.FC = () => {
                       </label>
                     </div>
                   </div>
-                  
+
                   {/* 背景设置 */}
-                  <div className="mt-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      背景设置
-                    </label>
-                    
-                    {/* 预设颜色选项 */}
-                    <div className="mb-3">
-                      <label className="block text-xs text-gray-600 mb-1">预设颜色:</label>
-                      <div className="flex flex-wrap gap-1">
-                        {['#F0F0F0', '#CCCCCC', '#FFEBEE', '#FFF8E1', '#E3F2FD', '#E8F5E9', '#F3E5F5', 'none'].map(color => (
-                          <button
-                            key={color}
-                            className={`w-6 h-6 rounded border border-gray-300 flex items-center justify-center ${
-                              (color === 'none' && state.backgroundColor === 'transparent') || 
-                              (color !== 'none' && state.backgroundColor === color) 
-                                ? 'ring-2 ring-blue-500' 
-                                : ''
-                            }`}
-                            onClick={() => setBackgroundColor(color === 'none' ? 'transparent' : color)}
-                            title={color === 'none' ? '无背景' : color}
-                          >
-                            {color === 'none' ? (
-                              <div 
-                                className="w-4 h-4 rounded-sm relative overflow-hidden"
-                                style={{
-                                  backgroundImage: `
-                                    linear-gradient(45deg, #e5e5e5 25%, transparent 25%, transparent 75%, #e5e5e5 75%, #e5e5e5),
-                                    linear-gradient(45deg, #e5e5e5 25%, transparent 25%, transparent 75%, #e5e5e5 75%, #e5e5e5)
-                                  `,
-                                  backgroundPosition: '0 0, 4px 4px',
-                                  backgroundSize: '8px 8px'
-                                }}
-                              />
-                            ) : (
-                              <div 
-                                className="w-4 h-4 rounded-sm" 
-                                style={{ backgroundColor: color }}
-                              />
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    
-                    {/* 自定义颜色 */}
-                    <div className="flex items-center">
-                      <span className="text-xs text-gray-600 mr-2">自定义颜色:</span>
-                      <input 
-                        type="color" 
-                        value={state.backgroundColor === 'transparent' ? '#FFFFFF' : state.backgroundColor}
-                        onChange={(e) => setBackgroundColor(e.target.value)}
-                        className="w-8 h-8 border border-gray-300 rounded cursor-pointer"
-                      />
-                    </div>
-                    
-                    {/* 背景图片上传 */}
-                    <div className="mt-2">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleBackgroundImageUpload}
-                        className="hidden"
-                        ref={bgImageInputRef}
-                      />
-                      <button
-                        onClick={() => bgImageInputRef.current?.click()}
-                        className="w-full py-1.5 px-3 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm rounded border border-gray-300 transition-colors"
-                      >
-                        {state.backgroundImage ? '更换背景图片' : '上传背景图片'}
-                      </button>
-                      {state.backgroundImage && (
-                        <button
-                          onClick={() => setBackgroundImage(null)}
-                          className="mt-2 w-full py-1.5 px-3 bg-red-50 hover:bg-red-100 text-red-600 text-sm rounded border border-red-200 transition-colors"
-                        >
-                          移除背景图片
-                        </button>
-                      )}
-                    </div>
+                  <div>
+                    <BackgroundSettingsPanel />
                   </div>
                 </div>
               </div>
@@ -892,7 +790,7 @@ const HomePageContent: React.FC = () => {
 };
 
 // 主页面组件 - 包装CanvasProvider
-const HomePage: React.FC = () => {
+const CanvasEditPage: React.FC = () => {
   return (
     <CanvasProvider>
       <HomePageContent />
@@ -900,4 +798,4 @@ const HomePage: React.FC = () => {
   );
 };
 
-export default HomePage
+export default CanvasEditPage 

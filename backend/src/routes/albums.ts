@@ -168,4 +168,83 @@ async function deleteAlbumAndChildren(albumId: number) {
   });
 }
 
+// 更新相册背景
+router.put('/:id/background', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user?.userId;
+    const albumId = parseInt(req.params.id);
+    const { background } = req.body;
+
+    const album = await prisma.album.findFirst({
+      where: { id: albumId, userId }
+    });
+
+    if (!album) {
+      return res.status(404).json({ error: '相册不存在' });
+    }
+
+    const updatedAlbum = await prisma.album.update({
+      where: { id: albumId },
+      data: {
+        background: background || null
+      }
+    });
+
+    res.json({ message: '相册背景更新成功', background: updatedAlbum.background });
+  } catch (error) {
+    console.error('更新相册背景错误:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+});
+
+// 获取相册背景
+router.get('/:id/background', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user?.userId;
+    const albumId = parseInt(req.params.id);
+
+    const album = await prisma.album.findFirst({
+      where: {
+        id: albumId,
+        userId
+      },
+      select: {
+        background: true,
+        backgroundColor: true,
+        backgroundImage: true
+      }
+    });
+
+    if (!album) {
+      return res.status(404).json({ error: '相册不存在' });
+    }
+
+    // 向后兼容：如果没有新background字段但有旧字段，返回转换后的格式
+    let background = album.background;
+    if (!background) {
+      if (album.backgroundImage) {
+        background = {
+          type: 'image',
+          url: album.backgroundImage
+        };
+      } else if (album.backgroundColor) {
+        background = {
+          type: 'solid',
+          color: album.backgroundColor
+        };
+      } else {
+        background = {
+          type: 'solid',
+          color: '#FFFFFF'
+        };
+      }
+    }
+
+    res.json({ background });
+  } catch (error) {
+    console.error('获取相册背景错误:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+});
+
 export default router;

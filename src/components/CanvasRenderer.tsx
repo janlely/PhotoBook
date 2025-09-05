@@ -26,26 +26,55 @@ const CanvasRenderer: React.FC<CanvasRendererProps> = ({
   // Sort elements by zIndex for proper rendering order
   const sortedElements = [...state.elements].sort((a, b) => a.zIndex - b.zIndex);
 
+  // Generate background style based on background type
+  const getBackgroundStyle = () => {
+    const { background } = state;
+    
+    switch (background.type) {
+      case 'solid':
+        return {
+          backgroundColor: background.color,
+          zIndex: -1
+        };
+      
+      case 'gradient':
+        const gradientStops = background.stops
+          .map(stop => `${stop.color} ${stop.position}%`)
+          .join(', ');
+        
+        const gradient = background.gradientType === 'linear'
+          ? `linear-gradient(${background.direction}, ${gradientStops})`
+          : `radial-gradient(${background.direction}, ${gradientStops})`;
+        
+        return {
+          background: gradient,
+          zIndex: -1
+        };
+      
+      case 'image':
+        return {
+          backgroundImage: `url(${background.url})`,
+          backgroundSize: background.size || 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+          zIndex: -1
+        };
+      
+      default:
+        return {
+          backgroundColor: '#ffffff',
+          zIndex: -1
+        };
+    }
+  };
+
   return (
     <>
-      {/* Render all canvas elements */}
-      {/* Background layer - added for background image/color support */}
-      {state.backgroundImage ? (
-        <img 
-          src={state.backgroundImage} 
-          alt="Background" 
-          className="absolute inset-0 w-full h-full object-cover"
-          style={{ zIndex: -1 }}
-        />
-      ) : (
-        <div 
-          className="absolute inset-0"
-          style={{ 
-            backgroundColor: state.backgroundColor,
-            zIndex: -1 
-          }}
-        />
-      )}
+      {/* Background layer */}
+      <div 
+        className="absolute inset-0"
+        style={getBackgroundStyle()}
+      />
       
       {/* Elements layer */}
       <div className={`relative w-full h-full ${className || ''}`}>

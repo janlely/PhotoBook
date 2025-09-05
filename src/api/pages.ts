@@ -58,6 +58,18 @@ export const pagesAPI = {
     const response = await api.get(`/pages/${pageId}/canvas`);
     return response.data;
   },
+
+  // 更新页面背景
+  updateBackground: async (pageId: number, background: any): Promise<{ message: string }> => {
+    const response = await api.put(`/pages/${pageId}/background`, { background });
+    return response.data;
+  },
+
+  // 获取页面背景
+  getBackground: async (pageId: number): Promise<{ background: any }> => {
+    const response = await api.get(`/pages/${pageId}/background`);
+    return response.data;
+  },
 };
 
 export default pagesAPI;

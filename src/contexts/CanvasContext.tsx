@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { useAutoSave } from '../hooks/useAutoSave';
 import type { SaveStatus } from '../hooks/useAutoSave';
 import type { PageCanvasData } from '../api/pages';
+import type { BackgroundStyle } from '../types/backgroundStyle';
 
 // Base types for canvas elements
 export interface Point {
@@ -94,8 +95,7 @@ export interface CanvasState {
   isSnapToGrid: boolean;
   gridSize: number;
   currentPageId: number | null; // 添加当前页面ID
-  backgroundColor: string; // 添加背景颜色
-  backgroundImage: string | null; // 添加背景图片URL
+  background: BackgroundStyle; // 统一背景配置
   backgroundScope: 'page' | 'album'; // 背景应用范围
 }
 
@@ -153,7 +153,7 @@ interface CanvasContextType {
   
   // Page operations
   setCurrentPageId: (pageId: number | null) => void;
-  loadCanvasData: (data: PageCanvasData) => void;
+  loadCanvasData: (data: PageCanvasData, pageId?: number) => Promise<void>;
   
   // Auto-save operations
   saveStatus: SaveStatus;
@@ -161,8 +161,7 @@ interface CanvasContextType {
   clearSaveError: () => void;
   
   // Preview and export utilities
-  setBackgroundColor: (color: string) => void;
-  setBackgroundImage: (imageUrl: string | null) => void;
+  setBackground: (background: BackgroundStyle) => void;
   setBackgroundScope: (scope: 'page' | 'album') => void;
   setPreviewMode: (enabled: boolean) => void;
   exportCanvasAsImage: (format: 'png' | 'jpeg', quality?: number) => Promise<Blob>;
@@ -200,8 +199,10 @@ const initialState: CanvasState = {
   isSnapToGrid: false,
   gridSize: 20,
   currentPageId: null,
-  backgroundColor: '#FFFFFF', // 默认白色背景
-  backgroundImage: null, // 无背景图片
+  background: {
+    type: 'solid',
+    color: '#FFFFFF'
+  }, // 默认白色背景
   backgroundScope: 'page', // 默认页面级作用域
 };
 
@@ -679,13 +680,27 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
     }));
   }, []);
 
-  const loadCanvasData = useCallback((data: PageCanvasData) => {
+  const loadCanvasData = useCallback(async (data: PageCanvasData, pageId?: number) => {
+    // Load background data if pageId is provided
+    let background = initialState.background;
+    if (pageId) {
+      try {
+        const { pagesAPI } = await import('../api/pages');
+        const backgroundData = await pagesAPI.getBackground(pageId);
+        background = backgroundData.background;
+      } catch (error) {
+        console.error('Failed to load background data:', error);
+        // Keep default background if loading fails
+      }
+    }
+
     setState(prev => {
       // 加载数据时不添加到历史记录，因为这是初始化操作
       return {
         ...prev,
         elements: data.elements || [],
         canvasSize: data.canvasSize || prev.canvasSize,
+        background,
         selectedElementIds: [],
         // 重置历史记录
         history: [data.elements || []],
@@ -733,16 +748,10 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
     saveStatus,
     forceSave,
     clearSaveError: clearError,
-  setBackgroundColor: (color: string) => {
+  setBackground: (background: BackgroundStyle) => {
     setState(prev => ({
       ...prev,
-      backgroundColor: color
-    }));
-  },
-  setBackgroundImage: (imageUrl: string | null) => {
-    setState(prev => ({
-      ...prev,
-      backgroundImage: imageUrl
+      background
     }));
   },
   setBackgroundScope: (scope: 'page' | 'album') => {

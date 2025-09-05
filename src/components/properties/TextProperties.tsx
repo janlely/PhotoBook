@@ -5,6 +5,7 @@ import { ChevronUpDownIcon, CheckIcon } from '@heroicons/react/20/solid';
 import { useCanvas } from '../../contexts/CanvasContext';
 import type { TextElement } from '../../contexts/CanvasContext';
 import { FONT_CONFIG, TEXT_ALIGN_OPTIONS } from '../../config/fonts';
+import ToggleSelector from '../ToggleSelector';
 
 interface TextPropertiesProps {
   element: TextElement;
@@ -74,34 +75,15 @@ const TextProperties: React.FC<TextPropertiesProps> = ({ element }) => {
               字体
             </label>
             {/* 中英文切换按钮 */}
-            <div className="flex border border-gray-300 rounded-md overflow-hidden">
-              <button
-                onClick={() => setIsChineseFont(false)}
-                className={`
-                  px-2 py-1 text-xs border-r border-gray-300 transition-colors
-                  ${
-                    !isChineseFont
-                      ? 'bg-gray-200 text-gray-900'
-                      : 'bg-white text-gray-600 hover:bg-gray-50'
-                  }
-                `}
-              >
-                En
-              </button>
-              <button
-                onClick={() => setIsChineseFont(true)}
-                className={`
-                  px-2 py-1 text-xs transition-colors
-                  ${
-                    isChineseFont
-                      ? 'bg-gray-200 text-gray-900'
-                      : 'bg-white text-gray-600 hover:bg-gray-50'
-                  }
-                `}
-              >
-                中
-              </button>
-            </div>
+            <ToggleSelector
+              options={[
+                { value: false as const, label: 'En' },
+                { value: true as const, label: '中' }
+              ]}
+              value={isChineseFont}
+              onChange={setIsChineseFont}
+              size='sm'
+            />
           </div>
           
           <Listbox

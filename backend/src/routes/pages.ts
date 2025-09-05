@@ -238,4 +238,90 @@ router.get('/:id/canvas', authenticateToken, async (req: AuthRequest, res) => {
   }
 });
 
+// 更新页面背景
+router.put('/:id/background', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user?.userId;
+    const pageId = parseInt(req.params.id);
+    const { background } = req.body;
+
+    const page = await prisma.page.findFirst({
+      where: {
+        id: pageId,
+        album: {
+          userId
+        }
+      }
+    });
+
+    if (!page) {
+      return res.status(404).json({ error: '页面不存在或无权限访问' });
+    }
+
+    const updatedPage = await prisma.page.update({
+      where: { id: pageId },
+      data: {
+        background: background || null
+      }
+    });
+
+    res.json({ message: '页面背景更新成功', background: updatedPage.background });
+  } catch (error) {
+    console.error('更新页面背景错误:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+});
+
+// 获取页面背景
+router.get('/:id/background', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user?.userId;
+    const pageId = parseInt(req.params.id);
+
+    const page = await prisma.page.findFirst({
+      where: {
+        id: pageId,
+        album: {
+          userId
+        }
+      },
+      select: {
+        background: true,
+        backgroundColor: true,
+        backgroundImage: true
+      }
+    });
+
+    if (!page) {
+      return res.status(404).json({ error: '页面不存在或无权限访问' });
+    }
+
+    // 向后兼容：如果没有新background字段但有旧字段，返回转换后的格式
+    let background = page.background;
+    if (!background) {
+      if (page.backgroundImage) {
+        background = {
+          type: 'image',
+          url: page.backgroundImage
+        };
+      } else if (page.backgroundColor) {
+        background = {
+          type: 'solid',
+          color: page.backgroundColor
+        };
+      } else {
+        background = {
+          type: 'solid',
+          color: '#FFFFFF'
+        };
+      }
+    }
+
+    res.json({ background });
+  } catch (error) {
+    console.error('获取页面背景错误:', error);
+    res.status(500).json({ error: '服务器内部错误' });
+  }
+});
+
 export default router;
