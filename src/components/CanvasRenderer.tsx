@@ -41,11 +41,11 @@ const CanvasRenderer: React.FC<CanvasRendererProps> = ({
         const gradientStops = background.stops
           .map(stop => `${stop.color} ${stop.position}%`)
           .join(', ');
-        
+
         const gradient = background.gradientType === 'linear'
           ? `linear-gradient(${background.direction}, ${gradientStops})`
-          : `radial-gradient(${background.direction}, ${gradientStops})`;
-        
+          : `radial-gradient(circle, ${gradientStops})`;
+
         return {
           background: gradient,
           zIndex: -1

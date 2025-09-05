@@ -92,9 +92,8 @@ const BackgroundSettingsPanel: React.FC = () => {
             </label>
             <div className="flex flex-wrap gap-1.5">
               {[
-                '#FFFFFF', '#F8F9FA', '#E9ECEF', '#DEE2E6',
-                '#CED4DA', '#ADB5BD', '#6C757D', '#495057',
-                '#343A40', '#212529', '#000000'
+                '#FFFFFF', '#FCE4EC', '#E3F2FD', '#E8F5E8',
+                '#FFF8E1', '#F3E5F5', '#FFF3E0', '#F5F5F5'
               ].map(color => (
                 <button
                   key={color}
@@ -163,34 +162,36 @@ const BackgroundSettingsPanel: React.FC = () => {
             </select>
           </div>
 
-          {/* Direction */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              方向
-            </label>
-            <select
-              value={background.direction}
-              onChange={async (e) => {
-                const newGradient: GradientStyle = {
-                  type: 'gradient',
-                  gradientType: background.gradientType,
-                  direction: e.target.value as GradientStyle['direction'],
-                  stops: background.stops
-                };
-                await handleGradientChange(newGradient);
-              }}
-              className="w-full px-2 py-1 text-sm border border-gray-300 rounded"
-            >
-              <option value="to bottom">向下</option>
-              <option value="to top">向上</option>
-              <option value="to right">向右</option>
-              <option value="to left">向左</option>
-              <option value="to bottom right">右下</option>
-              <option value="to bottom left">左下</option>
-              <option value="to top right">右上</option>
-              <option value="to top left">左上</option>
-            </select>
-          </div>
+          {/* Direction - Only show for linear gradients */}
+          {background.gradientType === 'linear' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                方向
+              </label>
+              <select
+                value={background.direction}
+                onChange={async (e) => {
+                  const newGradient: GradientStyle = {
+                    type: 'gradient',
+                    gradientType: background.gradientType,
+                    direction: e.target.value as GradientStyle['direction'],
+                    stops: background.stops
+                  };
+                  await handleGradientChange(newGradient);
+                }}
+                className="w-full px-2 py-1 text-sm border border-gray-300 rounded"
+              >
+                <option value="to bottom">向下</option>
+                <option value="to top">向上</option>
+                <option value="to right">向右</option>
+                <option value="to left">向左</option>
+                <option value="to bottom right">右下</option>
+                <option value="to bottom left">左下</option>
+                <option value="to top right">右上</option>
+                <option value="to top left">左上</option>
+              </select>
+            </div>
+          )}
 
           {/* Color Stops */}
           <div>
