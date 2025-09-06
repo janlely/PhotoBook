@@ -71,6 +71,7 @@ export interface GlobalState {
   // UI状态
   loading: Record<string, boolean>;
   errors: Record<string, string | null>;
+  canvasLoading: Record<number, boolean>; // 按页面ID跟踪画布加载状态
 
   // 自动保存状态
   saveStatus: 'saved' | 'saving' | 'error' | 'pending';
@@ -150,6 +151,7 @@ const useStore = create<GlobalState>()(
 
       loading: {},
       errors: {},
+      canvasLoading: {},
 
       // 自动保存状态
       saveStatus: 'saved',
@@ -277,43 +279,68 @@ const useStore = create<GlobalState>()(
         const state = get();
         const cacheKey = `canvas_${pageId}`;
 
+        console.log('🏪 Store: fetchCanvasData 开始', {
+          pageId,
+          force,
+          hasCachedData: !!state.canvasData[pageId]?.data,
+          isDataStale: state.canvasData[pageId] ? state.isDataStale(state.canvasData[pageId]) : 'no-cache'
+        });
+
         // 检查缓存是否有效 - 确保缓存对象完整
         const cachedData = state.canvasData[pageId];
         if (!force && cachedData && cachedData.expiresAt && !state.isDataStale(cachedData)) {
+          console.log('🏪 Store: 使用缓存数据，跳过API调用');
           return;
         }
 
+        console.log('🏪 Store: 设置loading状态为true');
+        // 设置画布加载状态
         set(state => ({
           loading: { ...state.loading, [cacheKey]: true },
-          errors: { ...state.errors, [cacheKey]: null }
+          errors: { ...state.errors, [cacheKey]: null },
+          canvasLoading: { ...state.canvasLoading, [pageId]: true }
         }));
 
         try {
+          console.log('🏪 Store: 开始API调用');
           const { pagesAPI } = await import('../api/pages');
           const canvasData = await pagesAPI.getCanvas(pageId);
           const backgroundData = await pagesAPI.getBackground(pageId);
 
-          set(state => ({
-            canvasData: {
-              ...state.canvasData,
-              [pageId]: {
-                data: {
-                  elements: canvasData.elements,
-                  background: backgroundData.background,
-                  canvasSize: canvasData.canvasSize
-                },
-                lastFetched: Date.now(),
-                expiresAt: Date.now() + CACHE_EXPIRY,
-                version: (state.canvasData[pageId]?.version || 0) + 1
-              }
-            },
-            loading: { ...state.loading, [cacheKey]: false }
-          }));
+          console.log('🏪 Store: API调用成功，设置loading状态为false', {
+            elementsCount: canvasData.elements?.length || 0,
+            canvasSize: canvasData.canvasSize
+          });
+
+          set(state => {
+            const newCanvasLoading = { ...state.canvasLoading, [pageId]: false };
+            console.log('🏪 Store: 更新状态 - canvasLoading:', newCanvasLoading);
+            return {
+              canvasData: {
+                ...state.canvasData,
+                [pageId]: {
+                  data: {
+                    elements: canvasData.elements,
+                    background: backgroundData.background,
+                    canvasSize: canvasData.canvasSize
+                  },
+                  lastFetched: Date.now(),
+                  expiresAt: Date.now() + CACHE_EXPIRY,
+                  version: (state.canvasData[pageId]?.version || 0) + 1
+                }
+              },
+              loading: { ...state.loading, [cacheKey]: false },
+              canvasLoading: newCanvasLoading
+            };
+          });
+
+          console.log('🏪 Store: 数据更新完成，loading状态已清除');
         } catch (error) {
-          console.error('Failed to fetch canvas data:', error);
+          console.error('🏪 Store: API调用失败:', error);
           set(state => ({
             loading: { ...state.loading, [cacheKey]: false },
-            errors: { ...state.errors, [cacheKey]: error instanceof Error ? error.message : 'Failed to fetch canvas data' }
+            errors: { ...state.errors, [cacheKey]: error instanceof Error ? error.message : 'Failed to fetch canvas data' },
+            canvasLoading: { ...state.canvasLoading, [pageId]: false }
           }));
         }
       },

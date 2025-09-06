@@ -248,10 +248,10 @@ const AlbumTree: React.FC<AlbumTreeProps> = ({
   };
 
   useEffect(() => {
-    console.log('AlbumTree useEffect:', {
-      storeAlbums: storeAlbums.data,
-      albumsLoading
-    });
+    // console.log('AlbumTree useEffect:', {
+    //   storeAlbums: storeAlbums.data,
+    //   albumsLoading
+    // });
 
     // 统一从store加载数据
     if (storeAlbums.data.length === 0 && !albumsLoading) {
@@ -262,12 +262,12 @@ const AlbumTree: React.FC<AlbumTreeProps> = ({
 
   const rootAlbums = albums.filter((album: Album) => !album.parentId);
 
-  console.log('AlbumTree render:', {
-    albums: albums.length,
-    rootAlbums: rootAlbums.length,
-    loading,
-    storeAlbums: storeAlbums.data.length
-  });
+  // console.log('AlbumTree render:', {
+  //   albums: albums.length,
+  //   rootAlbums: rootAlbums.length,
+  //   loading,
+  //   storeAlbums: storeAlbums.data.length
+  // });
 
   if (albumsLoading) {
     return (

@@ -166,13 +166,15 @@ const DraggableToolElement: React.FC<{
   currentImageElementRef: React.RefObject<string | null>;
   onElementDoubleClick: (element: CanvasElement) => void;
   onImageUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
-}> = ({ 
-  selectedPage, 
-  selectedAlbum, 
+  isCanvasLoading: boolean;
+}> = ({
+  selectedPage,
+  selectedAlbum,
   fileInputRef,
   currentImageElementRef,
   onElementDoubleClick,
-  onImageUpload
+  onImageUpload,
+  isCanvasLoading
 }) => {
   const { updateElement, state, setZoom, toggleGrid } = useCanvas();
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -200,13 +202,13 @@ const DraggableToolElement: React.FC<{
     const scaleY = availableHeight / canvasHeight;
     const optimalScale = Math.min(scaleX, scaleY, 1); // 最大不超过100%
     
-    console.log('🎯 计算缩放比例:', {
-      容器尺寸: { width: containerWidth, height: containerHeight },
-      画布尺寸: { width: canvasWidth, height: canvasHeight },
-      可用尺寸: { width: availableWidth, height: availableHeight },
-      计算比例: { scaleX, scaleY },
-      最终缩放: optimalScale
-    });
+    // console.log('🎯 计算缩放比例:', {
+    //   容器尺寸: { width: containerWidth, height: containerHeight },
+    //   画布尺寸: { width: canvasWidth, height: canvasHeight },
+    //   可用尺寸: { width: availableWidth, height: availableHeight },
+    //   计算比例: { scaleX, scaleY },
+    //   最终缩放: optimalScale
+    // });
     
     // 设置缩放比例
     setZoom(optimalScale);
@@ -287,11 +289,19 @@ const DraggableToolElement: React.FC<{
               {selectedPage ? selectedPage.title : 'Playground'}
             </h2>
             <p className="text-sm text-gray-600">
-              {selectedPage 
-                ? `相册: ${selectedAlbum?.title}` 
+              {selectedPage
+                ? `相册: ${selectedAlbum?.title}`
                 : '临时设计区域 - 此内容不会保存，请选择相册页面进行正式编辑'}
             </p>
           </div>
+
+          {/* 加载指示器 */}
+          {isCanvasLoading && (
+            <div className="flex items-center space-x-2 text-blue-600">
+              <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent"></div>
+              <span className="text-sm">加载中...</span>
+            </div>
+          )}
           
           {/* 缩放控件 */}
           <div className="flex items-center space-x-2">
@@ -345,7 +355,7 @@ const DraggableToolElement: React.FC<{
       </div>
       
       {/* 画布区域 - 固定大小，支持滚动 */}
-      <div 
+      <div
         ref={canvasContainerRef}
         className="flex-1 bg-gray-200 relative"
         style={{
@@ -353,6 +363,15 @@ const DraggableToolElement: React.FC<{
           overflow: 'hidden', // 隐藏原生滚动条，使用自定义滚动
         }}
       >
+        {/* 加载遮罩 */}
+        {isCanvasLoading && (
+          <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-10">
+            <div className="flex flex-col items-center space-y-3">
+              <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent"></div>
+              <p className="text-gray-600 text-sm">正在加载画布数据...</p>
+            </div>
+          </div>
+        )}
         {/* 内部滚动容器 */}
         <div 
           className="absolute inset-0 overflow-auto"
@@ -426,7 +445,7 @@ const HomePageContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'design' | 'properties' | 'settings'>('settings');
 
   // 从store获取数据
-  const { albums: storeAlbums, fetchAlbums, fetchCanvasData, canvasData } = useStore();
+  const { albums: storeAlbums, fetchAlbums, fetchCanvasData, canvasData, canvasLoading } = useStore();
   const albums = storeAlbums.data;
   
   // 用于图片上传的文件输入引用
@@ -457,7 +476,40 @@ const HomePageContent: React.FC = () => {
     setCurrentPageId(null); // 清空当前页面ID
   };
 
+  // 预加载相邻页面的数据
+  const preloadAdjacentPages = React.useCallback(async (currentPageId: number, albumId: number) => {
+    if (!selectedAlbum?.pages) return;
+
+    const currentIndex = selectedAlbum.pages.findIndex(p => p.id === currentPageId);
+    if (currentIndex === -1) return;
+
+    // 预加载前一个和后一个页面
+    const adjacentPageIds = [];
+    if (currentIndex > 0) {
+      adjacentPageIds.push(selectedAlbum.pages[currentIndex - 1].id);
+    }
+    if (currentIndex < selectedAlbum.pages.length - 1) {
+      adjacentPageIds.push(selectedAlbum.pages[currentIndex + 1].id);
+    }
+
+    // 异步预加载，不阻塞当前操作
+    adjacentPageIds.forEach(pageId => {
+      if (!canvasData[pageId]) {
+        fetchCanvasData(pageId).catch(error => {
+          console.log(`预加载页面 ${pageId} 数据失败:`, error);
+        });
+      }
+    });
+  }, [selectedAlbum, canvasData, fetchCanvasData]);
+
   const handlePageSelect = async (page: Page) => {
+    console.log('🎯 handlePageSelect 开始:', {
+      pageId: page.id,
+      pageTitle: page.title,
+      currentCanvasLoading: canvasLoading[page.id],
+      hasCachedData: !!canvasData[page.id]?.data
+    });
+
     setSelectedPage(page);
 
     // 设置当前页面ID和相册ID
@@ -471,26 +523,72 @@ const HomePageContent: React.FC = () => {
       setCurrentAlbumId(null);
     }
 
-    try {
-      // 使用store的fetchCanvasData方法，利用缓存机制
-      console.log('加载页面画布数据:', page.id);
-      await fetchCanvasData(page.id);
+    // 等待画布数据加载完成
+    const loadCanvasWithDataCheck = async () => {
+      try {
+        // 使用store的fetchCanvasData方法，利用缓存机制
+        console.log('📡 调用 fetchCanvasData:', page.id);
+        await fetchCanvasData(page.id);
 
-      // 从store获取缓存的数据
-      const cachedCanvasData = canvasData[page.id];
-      if (cachedCanvasData?.data) {
-        // 转换store数据格式为PageCanvasData格式
-        const pageCanvasData = {
-          canvasSize: cachedCanvasData.data.canvasSize || { width: 800, height: 600 },
-          elements: cachedCanvasData.data.elements,
-          version: 1,
-          lastModified: new Date().toISOString()
-        };
-        loadCanvasData(pageCanvasData, page.id, selectedAlbum?.id);
-        console.log('画布数据从缓存加载成功');
-      } else {
-        // 如果没有缓存数据，初始化为空画布
-        console.log('缓存中没有画布数据，初始化空画布');
+        console.log('⏳ 开始等待数据加载完成...');
+
+        // 使用Promise来等待数据加载完成
+        await new Promise<void>((resolve) => {
+          const checkData = () => {
+            // 直接从store获取最新状态，避免闭包捕获问题
+            const { canvasLoading: latestCanvasLoading, canvasData: latestCanvasData } = useStore.getState();
+            const cachedCanvasData = latestCanvasData[page.id];
+            const isLoading = latestCanvasLoading[page.id];
+
+            console.log('🔍 检查数据状态:', {
+              pageId: page.id,
+              isLoading,
+              hasData: !!cachedCanvasData?.data,
+              dataElements: cachedCanvasData?.data?.elements?.length || 0,
+              canvasLoadingState: latestCanvasLoading,
+              canvasDataState: Object.keys(latestCanvasData)
+            });
+
+            if (!isLoading && cachedCanvasData?.data) {
+              // 数据已加载，渲染画布
+              console.log('✅ 数据加载完成，开始渲染画布');
+              const pageCanvasData = {
+                canvasSize: cachedCanvasData.data.canvasSize || { width: 800, height: 600 },
+                elements: cachedCanvasData.data.elements,
+                version: 1,
+                lastModified: new Date().toISOString()
+              };
+              loadCanvasData(pageCanvasData, page.id, selectedAlbum?.id);
+              console.log('🎨 画布数据加载并渲染成功');
+
+              // 预加载相邻页面数据
+              if (selectedAlbum) {
+                preloadAdjacentPages(page.id, selectedAlbum.id);
+              }
+              resolve();
+            } else if (!isLoading) {
+              // 加载已结束但没有数据，初始化为空画布
+              console.log('⚠️ 加载结束但无数据，初始化空画布');
+              loadCanvasData({
+                canvasSize: { width: 800, height: 600 },
+                elements: [],
+                version: 1,
+                lastModified: new Date().toISOString()
+              }, page.id, selectedAlbum?.id);
+              resolve();
+            } else {
+              // 仍在加载中，继续等待
+              console.log('⏳ 仍在加载中，继续等待...');
+              setTimeout(checkData, 50);
+            }
+          };
+
+          checkData();
+        });
+
+      } catch (error) {
+        console.error('❌ 加载画布数据失败:', error);
+        // 如果加载失败，初始化为空画布
         loadCanvasData({
           canvasSize: { width: 800, height: 600 },
           elements: [],
@@ -498,16 +596,9 @@ const HomePageContent: React.FC = () => {
           lastModified: new Date().toISOString()
         }, page.id, selectedAlbum?.id);
       }
-    } catch (error) {
-      console.error('加载画布数据失败:', error);
-      // 如果加载失败，初始化为空画布
-      loadCanvasData({
-        canvasSize: { width: 800, height: 600 },
-        elements: [],
-        version: 1,
-        lastModified: new Date().toISOString()
-      }, page.id, selectedAlbum?.id);
-    }
+    };
+
+    await loadCanvasWithDataCheck();
   };
 
   const handleCreatePage = async (albumId: number) => {
@@ -613,6 +704,7 @@ const HomePageContent: React.FC = () => {
             currentImageElementRef={currentImageElementRef}
             onElementDoubleClick={handleElementDoubleClick}
             onImageUpload={handleImageUpload}
+            isCanvasLoading={selectedPage ? canvasLoading[selectedPage.id] || false : false}
           />
         </div>
       </div>

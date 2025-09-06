@@ -18,7 +18,7 @@ export const albumsAPI = {
   // 获取用户的所有相册
   getAll: async (): Promise<Album[]> => {
     const response = await api.get('/albums');
-    console.log('获取用户的所有相册:', response.data);
+    // console.log('获取用户的所有相册:', response.data);
     return response.data;
   },
 
