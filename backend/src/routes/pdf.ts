@@ -1,5 +1,6 @@
 import express from 'express';
 import puppeteer from 'puppeteer';
+import { PDFDocument } from 'pdf-lib';
 import { PrismaClient } from '../generated/prisma';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import path from 'path';
@@ -113,8 +114,6 @@ function generateHTMLTemplate(pageData: PageCanvasData, background: BackgroundSt
             line-height: ${element.lineHeight || 1.2};
             white-space: pre-wrap;
             word-break: break-word;
-            display: flex;
-            align-items: center;
             opacity: ${element.opacity || 1};
           ">
             ${element.content || ''}
@@ -329,19 +328,28 @@ router.get('/album/:albumId', authenticateToken, async (req: AuthRequest, res) =
       return res.status(500).json({ error: 'PDF生成失败' });
     }
 
-    // 合并PDF（如果有多个页面）
+    // 处理PDF输出
+    let finalPdfBuffer: Buffer;
+
     if (pdfBuffers.length === 1) {
       // 单个页面直接返回
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename="${album.title}.pdf"`);
-      res.send(pdfBuffers[0]);
+      finalPdfBuffer = pdfBuffers[0];
     } else {
-      // 多个页面需要合并（这里简化处理，返回第一个）
-      // 实际项目中可以使用pdf-lib等库来合并PDF
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename="${album.title}.pdf"`);
-      res.send(pdfBuffers[0]);
+      // 多个页面需要合并
+      const mergedPdf = await PDFDocument.create();
+
+      for (const pdfBuffer of pdfBuffers) {
+        const pdf = await PDFDocument.load(pdfBuffer);
+        const copiedPages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
+        copiedPages.forEach((page) => mergedPdf.addPage(page));
+      }
+
+      finalPdfBuffer = Buffer.from(await mergedPdf.save());
     }
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${album.title}.pdf"`);
+    res.send(finalPdfBuffer);
 
   } catch (error) {
     console.error('PDF导出错误:', error);
