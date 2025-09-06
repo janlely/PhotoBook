@@ -236,19 +236,6 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
     });
   }, []);
 
-  // 监听状态变化并触发保存 - 使用store的统一防抖机制
-  useEffect(() => {
-    // 只有在有页面ID且元素真正发生变化时才触发保存
-    if (state.currentPageId && state.elements.length >= 0) {
-      const canvasData = {
-        elements: state.elements,
-        background: state.background
-      };
-
-      console.log('自动保存触发，元素数量:', state.elements.length, '页面ID:', state.currentPageId);
-      store.updateCanvasData(state.currentPageId, canvasData);
-    }
-  }, [state.elements, state.canvasSize, state.currentPageId, store]); // 包含所有必要的依赖
 
   const addElement = useCallback((elementData: Omit<CanvasElement, 'id' | 'createdAt' | 'updatedAt'>) => {
     const id = generateId();
@@ -270,8 +257,17 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
       };
     });
 
+    // Trigger auto-save when element is added
+    if (state.currentPageId) {
+      store.updateCanvasData(state.currentPageId, {
+        elements: [...state.elements, newElement],
+        background: state.background,
+        canvasSize: state.canvasSize
+      });
+    }
+
     return id;
-  }, [generateId, addToHistory]);
+  }, [generateId, addToHistory, state.currentPageId, state.elements, state.background, store]);
 
   const updateElement = useCallback((id: string, updates: Partial<CanvasElement>) => {
     console.log('updateElement 被调用:', { id, updates });
@@ -289,7 +285,22 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
         elements: newElements,
       };
     });
-  }, [addToHistory]);
+
+    // Trigger auto-save when element is updated
+    if (state.currentPageId) {
+      const updatedElements = state.elements.map(element => {
+        if (element.id === id) {
+          return { ...element, ...updates, updatedAt: new Date() } as CanvasElement;
+        }
+        return element;
+      });
+      store.updateCanvasData(state.currentPageId, {
+        elements: updatedElements,
+        background: state.background,
+        canvasSize: state.canvasSize
+      });
+    }
+  }, [addToHistory, state.currentPageId, state.elements, state.background, store]);
 
   const deleteElement = useCallback((id: string) => {
     setState(prev => {
@@ -302,11 +313,21 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
         selectedElementIds: newSelectedIds,
       };
     });
-  }, [addToHistory]);
+
+    // Trigger auto-save when element is deleted
+    if (state.currentPageId) {
+      const remainingElements = state.elements.filter(element => element.id !== id);
+      store.updateCanvasData(state.currentPageId, {
+        elements: remainingElements,
+        background: state.background,
+        canvasSize: state.canvasSize
+      });
+    }
+  }, [addToHistory, state.currentPageId, state.elements, state.background, store]);
 
   const deleteSelectedElements = useCallback(() => {
     setState(prev => {
-      const newElements = prev.elements.filter(element => 
+      const newElements = prev.elements.filter(element =>
         !prev.selectedElementIds.includes(element.id)
       );
       addToHistory(newElements);
@@ -316,7 +337,19 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
         selectedElementIds: [],
       };
     });
-  }, [addToHistory]);
+
+    // Trigger auto-save when selected elements are deleted
+    if (state.currentPageId) {
+      const remainingElements = state.elements.filter(element =>
+        !state.selectedElementIds.includes(element.id)
+      );
+      store.updateCanvasData(state.currentPageId, {
+        elements: remainingElements,
+        background: state.background,
+        canvasSize: state.canvasSize
+      });
+    }
+  }, [addToHistory, state.currentPageId, state.elements, state.selectedElementIds, state.background, store]);
 
   const duplicateElement = useCallback((id: string) => {
     const element = state.elements.find(el => el.id === id);
@@ -346,8 +379,17 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
       };
     });
 
+    // Trigger auto-save when element is duplicated
+    if (state.currentPageId) {
+      store.updateCanvasData(state.currentPageId, {
+        elements: [...state.elements, duplicatedElement],
+        background: state.background,
+        canvasSize: state.canvasSize
+      });
+    }
+
     return newId;
-  }, [state.elements, generateId, addToHistory]);
+  }, [state.elements, generateId, addToHistory, state.currentPageId, state.background, store]);
 
   const selectElement = useCallback((id: string, addToSelection = false) => {
     setState(prev => ({
@@ -397,16 +439,39 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
         }
         return element;
       });
-      
+
       // 只在拖动结束时才添加到历史记录，减少频繁更新
       addToHistory(newElements);
-      
+
       return {
         ...prev,
         elements: newElements,
       };
     });
-  }, [addToHistory]);
+
+    // Trigger auto-save when element is moved
+    if (state.currentPageId) {
+      const movedElements = state.elements.map(element => {
+        if (element.id === id) {
+          return {
+            ...element,
+            transform: {
+              ...element.transform,
+              x: element.transform.x + delta.x,
+              y: element.transform.y + delta.y,
+            },
+            updatedAt: new Date(),
+          };
+        }
+        return element;
+      });
+      store.updateCanvasData(state.currentPageId, {
+        elements: movedElements,
+        background: state.background,
+        canvasSize: state.canvasSize
+      });
+    }
+  }, [addToHistory, state.currentPageId, state.elements, state.background, store]);
 
   const moveMultipleElements = useCallback((elementIds: string[], delta: Point) => {
     // Move multiple elements simultaneously
@@ -431,7 +496,30 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
         elements: newElements,
       };
     });
-  }, [addToHistory]);
+
+    // Trigger auto-save when multiple elements are moved
+    if (state.currentPageId) {
+      const movedElements = state.elements.map(element => {
+        if (elementIds.includes(element.id)) {
+          return {
+            ...element,
+            transform: {
+              ...element.transform,
+              x: element.transform.x + delta.x,
+              y: element.transform.y + delta.y,
+            },
+            updatedAt: new Date(),
+          };
+        }
+        return element;
+      });
+      store.updateCanvasData(state.currentPageId, {
+        elements: movedElements,
+        background: state.background,
+        canvasSize: state.canvasSize
+      });
+    }
+  }, [addToHistory, state.currentPageId, state.elements, state.background, store]);
 
   const resizeElement = useCallback((id: string, newTransform: Partial<Transform>) => {
     console.log('📝 CanvasContext.resizeElement 被调用:', {
@@ -510,7 +598,16 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
       // 重置显示缩放比例为1，等待容器调用calculateOptimalDisplayScale
       displayScale: 1,
     }));
-  }, []);
+
+    // Trigger auto-save when canvas size changes
+    if (state.currentPageId) {
+      store.updateCanvasData(state.currentPageId, {
+        elements: state.elements,
+        background: state.background,
+        canvasSize: size
+      });
+    }
+  }, [state.currentPageId, state.elements, state.background, store]);
 
   const setDisplayScale = useCallback((scale: number) => {
     setState(prev => ({
@@ -711,9 +808,11 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
             backgroundScope = 'page';
             if (pageId) {
               try {
-                const { pagesAPI } = await import('../api/pages');
-                const pageBackgroundData = await pagesAPI.getBackground(pageId);
-                background = pageBackgroundData.background;
+                // 使用store的缓存方法获取页面背景
+                const pageBackground = await store.fetchPageBackground(pageId);
+                if (pageBackground) {
+                  background = pageBackground;
+                }
               } catch (error) {
                 console.error('Failed to load page background data:', error);
               }
@@ -734,9 +833,11 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
             backgroundScope = 'page';
             if (pageId) {
               try {
-                const { pagesAPI } = await import('../api/pages');
-                const pageBackgroundData = await pagesAPI.getBackground(pageId);
-                background = pageBackgroundData.background;
+                // 使用store的缓存方法获取页面背景
+                const pageBackground = await store.fetchPageBackground(pageId);
+                if (pageBackground) {
+                  background = pageBackground;
+                }
               } catch (error) {
                 console.error('Failed to load page background data:', error);
               }
@@ -754,9 +855,11 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
       // If only pageId is provided, load page-specific background
       backgroundScope = 'page';
       try {
-        const { pagesAPI } = await import('../api/pages');
-        const backgroundData = await pagesAPI.getBackground(pageId);
-        background = backgroundData.background;
+        // 使用store的缓存方法获取页面背景
+        const pageBackground = await store.fetchPageBackground(pageId);
+        if (pageBackground) {
+          background = pageBackground;
+        }
       } catch (error) {
         console.error('Failed to load page background data:', error);
       }
@@ -823,7 +926,11 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
     saveStatus: store.saveStatus,
     forceSave: () => {
       if (store.pendingCanvasData) {
-        store.updateCanvasData(store.pendingCanvasData.pageId, store.pendingCanvasData.data);
+        const data = store.pendingCanvasData.data as { elements: CanvasElement[]; background: BackgroundStyle; canvasSize?: Size };
+        store.updateCanvasData(store.pendingCanvasData.pageId, {
+          ...data,
+          canvasSize: data.canvasSize || state.canvasSize
+        });
       }
     },
     clearSaveError: () => {

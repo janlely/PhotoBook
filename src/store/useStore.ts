@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { Album } from '../api/albums';
 import type { Page } from '../api/pages';
-import type { CanvasElement } from '../contexts/CanvasContext';
+import type { CanvasElement, Size } from '../contexts/CanvasContext';
 import type { BackgroundStyle } from '../types/backgroundStyle';
 import { errorHandler, withErrorHandler } from '../utils/errorHandler';
 import { performanceMonitor } from '../utils/performanceMonitor';
@@ -57,7 +57,8 @@ export interface GlobalState {
   albums: CachedData<Album[]>;
   pages: Record<number, CachedData<Page[]>>; // 按相册ID分组
   images: CachedData<any[]>;
-  canvasData: Record<number, CachedData<{ elements: CanvasElement[]; background: BackgroundStyle }>>; // 按页面ID分组
+  canvasData: Record<number, CachedData<{ elements: CanvasElement[]; background: BackgroundStyle; canvasSize: Size }>>; // 按页面ID分组
+  pageBackgrounds: Record<number, CachedData<BackgroundStyle>>; // 页面背景缓存，按页面ID分组
 
   // 变更跟踪
   changes: ChangeRecord[];
@@ -74,7 +75,7 @@ export interface GlobalState {
   // 自动保存状态
   saveStatus: 'saved' | 'saving' | 'error' | 'pending';
   saveTimeoutId: NodeJS.Timeout | null;
-  pendingCanvasData: { pageId: number; data: { elements: CanvasElement[]; background: BackgroundStyle } } | null;
+  pendingCanvasData: { pageId: number; data: { elements: CanvasElement[]; background: BackgroundStyle; canvasSize?: Size } } | null;
 
   // 操作方法
   // 数据获取
@@ -82,6 +83,7 @@ export interface GlobalState {
   fetchPages: (albumId: number, force?: boolean) => Promise<void>;
   fetchImages: (force?: boolean) => Promise<void>;
   fetchCanvasData: (pageId: number, force?: boolean) => Promise<void>;
+  fetchPageBackground: (pageId: number, force?: boolean) => Promise<BackgroundStyle | null>;
 
   // 数据操作
   createAlbum: (album: Omit<Album, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Album>;
@@ -92,7 +94,7 @@ export interface GlobalState {
   updatePage: (id: number, updates: Partial<Page>) => Promise<void>;
   deletePage: (id: number) => Promise<void>;
 
-  updateCanvasData: (pageId: number, data: { elements: CanvasElement[]; background: BackgroundStyle }) => Promise<void>;
+  updateCanvasData: (pageId: number, data: { elements: CanvasElement[]; background: BackgroundStyle; canvasSize?: Size }) => Promise<void>;
 
   // 相册背景管理
   updateAlbumBackgroundSetting: (albumId: number, isUseGlobalBackground: boolean) => Promise<void>;
@@ -138,6 +140,7 @@ const useStore = create<GlobalState>()(
         version: 0
       },
       canvasData: {},
+      pageBackgrounds: {},
 
       changes: [],
       lastSyncTime: 0,
@@ -296,7 +299,8 @@ const useStore = create<GlobalState>()(
               [pageId]: {
                 data: {
                   elements: canvasData.elements,
-                  background: backgroundData.background
+                  background: backgroundData.background,
+                  canvasSize: canvasData.canvasSize
                 },
                 lastFetched: Date.now(),
                 expiresAt: Date.now() + CACHE_EXPIRY,
@@ -449,7 +453,7 @@ const useStore = create<GlobalState>()(
         });
       },
 
-      updateCanvasData: async (pageId, data) => {
+      updateCanvasData: async (pageId, data: { elements: CanvasElement[]; background: BackgroundStyle; canvasSize?: Size }) => {
         const state = get();
 
         // 清除之前的定时器
@@ -465,7 +469,7 @@ const useStore = create<GlobalState>()(
           const currentState = get();
           if (!currentState.pendingCanvasData) return;
 
-          const { pageId: savePageId, data: saveData } = currentState.pendingCanvasData;
+          const { pageId: savePageId, data: saveData } = currentState.pendingCanvasData as { pageId: number; data: { elements: CanvasElement[]; background: BackgroundStyle; canvasSize?: Size } };
 
           try {
             set({ saveStatus: 'saving' });
@@ -474,7 +478,7 @@ const useStore = create<GlobalState>()(
 
             // 更新画布数据
             await pagesAPI.updateCanvas(savePageId, {
-              canvasSize: { width: 800, height: 600 }, // 默认尺寸
+              canvasSize: saveData.canvasSize || { width: 800, height: 600 }, // 使用传入的尺寸或默认尺寸
               elements: saveData.elements,
               version: 1
             });
@@ -488,7 +492,11 @@ const useStore = create<GlobalState>()(
                 ...state.canvasData,
                 [savePageId]: {
                   ...state.canvasData[savePageId],
-                  data: saveData,
+                  data: {
+                    elements: saveData.elements,
+                    background: saveData.background,
+                    canvasSize: saveData.canvasSize || { width: 800, height: 600 }
+                  },
                   lastFetched: Date.now(),
                   expiresAt: Date.now() + CACHE_EXPIRY,
                   version: (state.canvasData[savePageId]?.version || 0) + 1
@@ -508,7 +516,7 @@ const useStore = create<GlobalState>()(
               data: {
                 elements: saveData.elements,
                 background: saveData.background,
-                canvasSize: { width: 800, height: 600 }
+                canvasSize: saveData.canvasSize || { width: 800, height: 600 }
               }
             });
 
@@ -519,6 +527,39 @@ const useStore = create<GlobalState>()(
         }, 1000); // 1秒防抖
 
         set({ saveTimeoutId: timeoutId });
+      },
+
+      fetchPageBackground: async (pageId: number, force = false) => {
+        const state = get();
+        const cacheKey = `page_bg_${pageId}`;
+
+        // 检查缓存是否有效
+        if (!force && state.pageBackgrounds[pageId] && !state.isDataStale(state.pageBackgrounds[pageId])) {
+          return state.pageBackgrounds[pageId].data;
+        }
+
+        try {
+          const { pagesAPI } = await import('../api/pages');
+          const backgroundData = await pagesAPI.getBackground(pageId);
+
+          // 更新缓存
+          set(state => ({
+            pageBackgrounds: {
+              ...state.pageBackgrounds,
+              [pageId]: {
+                data: backgroundData.background,
+                lastFetched: Date.now(),
+                expiresAt: Date.now() + CACHE_EXPIRY,
+                version: (state.pageBackgrounds[pageId]?.version || 0) + 1
+              }
+            }
+          }));
+
+          return backgroundData.background;
+        } catch (error) {
+          console.error('Failed to fetch page background:', error);
+          return null;
+        }
       },
 
       // 相册背景管理方法

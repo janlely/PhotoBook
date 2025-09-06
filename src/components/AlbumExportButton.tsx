@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { pdfExporter, type ExportOptions, type ExportProgress } from '../utils/pdfExporter';
 import { albumsAPI } from '../api/albums';
 
 interface AlbumExportButtonProps {
@@ -11,33 +10,15 @@ interface AlbumExportButtonProps {
 
 export const AlbumExportButton: React.FC<AlbumExportButtonProps> = ({ albumId, albumTitle, className, iconOnly }) => {
   const [isExporting, setIsExporting] = useState(false);
-  const [progress, setProgress] = useState<ExportProgress>({
-    currentPage: 0,
-    totalPages: 0,
-    progress: 0,
-    status: 'preparing'
-  });
 
   const handleExport = async () => {
     if (!albumId) return;
 
     setIsExporting(true);
-    setProgress({
-      currentPage: 0,
-      totalPages: 0,
-      progress: 0,
-      status: 'preparing'
-    });
-
-    pdfExporter.onProgress(setProgress);
 
     try {
-      const pdfBlob = await pdfExporter.exportAlbum(albumId, {
-        format: 'A4',
-        quality: 'high',
-        includeBleed: false,
-        orientation: 'portrait'
-      });
+      // 调用后端PDF导出API
+      const pdfBlob = await albumsAPI.exportToPDF(albumId);
 
       // 创建下载链接
       const url = URL.createObjectURL(pdfBlob);
@@ -47,10 +28,10 @@ export const AlbumExportButton: React.FC<AlbumExportButtonProps> = ({ albumId, a
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      
+
       // 清理
       URL.revokeObjectURL(url);
-      
+
     } catch (error) {
       console.error('导出失败:', error);
       alert('导出失败，请重试');
@@ -109,27 +90,14 @@ export const AlbumExportButton: React.FC<AlbumExportButtonProps> = ({ albumId, a
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full mx-4">
             <h3 className="text-lg font-semibold mb-4">正在导出相册</h3>
-            
-            <div className="mb-4">
-              <div className="flex justify-between text-sm text-gray-600 mb-1">
-                <span>{progress.status === 'preparing' ? '准备中...' : 
-                       progress.status === 'rendering' ? `渲染第 ${progress.currentPage}/${progress.totalPages} 页` :
-                       progress.status === 'generating' ? '生成PDF...' : '完成'}</span>
-                <span>{Math.round(progress.progress)}%</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div 
-                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${progress.progress}%` }}
-                />
-              </div>
+            <div className="flex items-center justify-center">
+              <svg className="animate-spin h-8 w-8 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
             </div>
-
-            <div className="text-sm text-gray-600">
-              {progress.status === 'preparing' && '正在准备导出数据...'}
-              {progress.status === 'rendering' && '正在渲染页面，请稍候...'}
-              {progress.status === 'generating' && '正在生成PDF文件...'}
-              {progress.status === 'complete' && '导出完成！'}
+            <div className="text-sm text-gray-600 text-center mt-4">
+              正在生成PDF文件，请稍候...
             </div>
           </div>
         </div>

@@ -8,6 +8,7 @@ import albumRoutes from './routes/albums';
 import pageRoutes from './routes/pages';
 import uploadRoutes from './routes/upload';
 import imageRoutes from './routes/images';
+import pdfRoutes from './routes/pdf';
 
 const app = express();
 const prisma = new PrismaClient();
@@ -27,6 +28,7 @@ app.use('/api/pages', pageRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/images', imageRoutes); // 短链接图片访问路由
 app.use('/img', imageRoutes); // 新的短链接图片访问路由 (/img)
+app.use('/api/pdf', pdfRoutes); // PDF导出路由
 
 // 静态文件服务 - 提供上传的图片访问
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));

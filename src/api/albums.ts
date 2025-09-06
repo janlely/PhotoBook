@@ -62,6 +62,14 @@ export const albumsAPI = {
     const response = await api.put(`/albums/${id}/global-background`, { isUseGlobalBackground });
     return response.data;
   },
+
+  // 导出相册为PDF
+  exportToPDF: async (id: number): Promise<Blob> => {
+    const response = await api.get(`/pdf/album/${id}`, {
+      responseType: 'blob'
+    });
+    return response.data;
+  },
 };
 
 export default albumsAPI;

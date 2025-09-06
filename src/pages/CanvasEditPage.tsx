@@ -481,9 +481,7 @@ const HomePageContent: React.FC = () => {
       if (cachedCanvasData?.data) {
         // 转换store数据格式为PageCanvasData格式
         const pageCanvasData = {
-          canvasSize: cachedCanvasData.data.elements.length > 0
-            ? { width: 800, height: 600 } // 默认尺寸，可以从store扩展
-            : { width: 800, height: 600 },
+          canvasSize: cachedCanvasData.data.canvasSize || { width: 800, height: 600 },
           elements: cachedCanvasData.data.elements,
           version: 1,
           lastModified: new Date().toISOString()
