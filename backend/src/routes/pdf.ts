@@ -228,40 +228,56 @@ router.get('/album/:albumId', authenticateToken, async (req: AuthRequest, res) =
       return res.status(400).json({ error: '相册中没有页面' });
     }
 
-    // 启动Puppeteer
+    // 启动Puppeteer - 使用更简单的配置
     const browser = await puppeteer.launch({
       headless: true,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--no-zygote',
-        '--single-process',
         '--disable-gpu'
       ]
     });
 
-    const page = await browser.newPage();
-
-    // 设置页面大小
+    // 获取画布尺寸（从第一页获取）
     const firstPageData = JSON.parse(album.pages[0].content || '{}');
     const canvasSize = firstPageData.canvasSize || { width: 800, height: 600 };
-
-    await page.setViewport({
-      width: Math.ceil(canvasSize.width),
-      height: Math.ceil(canvasSize.height),
-      deviceScaleFactor: 1
-    });
+    console.log('画布尺寸:', canvasSize);
 
     // 处理每一页
     const pdfBuffers: Buffer[] = [];
+    console.log(`开始处理相册 ${albumId}，共有 ${album.pages.length} 个页面`);
 
-    for (const pageData of album.pages) {
+    for (let i = 0; i < album.pages.length; i++) {
+      const pageData = album.pages[i];
+      console.log(`处理第 ${i + 1} 页，页面ID: ${pageData.id}`);
+
+      // 在处理每个页面之间添加延迟，避免资源竞争
+      if (i > 0) {
+        console.log(`等待 2 秒后处理下一个页面...`);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+
+      // 为每个页面创建新的Puppeteer页面对象
+      const page = await browser.newPage();
+
+      // 设置页面超时和视口
+      page.setDefaultTimeout(60000); // 60秒超时
+      page.setDefaultNavigationTimeout(60000);
+
+      await page.setViewport({
+        width: Math.ceil(canvasSize.width),
+        height: Math.ceil(canvasSize.height),
+        deviceScaleFactor: 1
+      });
+
       try {
         // 解析画布数据
         const canvasData: PageCanvasData = JSON.parse(pageData.content || '{}');
+        console.log(`页面 ${pageData.id} 的画布数据:`, {
+          canvasSize: canvasData.canvasSize,
+          elementsCount: canvasData.elements?.length || 0
+        });
 
         // 获取页面背景
         let background: BackgroundStyle = { type: 'solid', color: '#FFFFFF' };
@@ -270,16 +286,26 @@ router.get('/album/:albumId', authenticateToken, async (req: AuthRequest, res) =
           // 使用页面背景
           if (pageData.background) {
             background = pageData.background as unknown as BackgroundStyle;
+            console.log(`页面 ${pageData.id} 使用页面背景:`, background);
           }
         } else {
           // 使用相册背景
           if (album.background) {
             background = album.background as unknown as BackgroundStyle;
+            console.log(`页面 ${pageData.id} 使用相册背景:`, background);
           }
         }
 
         // 生成HTML
-        const html = generateHTMLTemplate(canvasData, background);
+        let html = generateHTMLTemplate(canvasData, background);
+
+        // 如果有图片元素，尝试将图片转换为base64嵌入，避免网络请求问题
+        if (canvasData.elements.some(el => el.type === 'image')) {
+          console.log(`页面 ${pageData.id} 包含图片元素，尝试转换图片URL`);
+
+          // 这里可以添加图片预处理逻辑
+          // 暂时保持原有逻辑
+        }
 
         // 保存HTML文件用于调试
         const fs = require('fs');
@@ -294,9 +320,14 @@ router.get('/album/:albumId', authenticateToken, async (req: AuthRequest, res) =
         console.log(`HTML文件已保存: ${htmlFilePath}`);
 
         // 设置页面内容
-        await page.setContent(html, { waitUntil: 'networkidle0' });
+        console.log(`设置页面 ${pageData.id} 内容，HTML大小: ${html.length} 字符`);
+        await page.setContent(html, {
+          waitUntil: 'domcontentloaded', // 改为只等待DOM加载，不等待网络请求
+          timeout: 30000
+        });
 
-        // 等待图片加载
+        // 等待一小段时间让页面稳定
+        console.log(`等待页面 ${pageData.id} 稳定`);
         await new Promise(resolve => setTimeout(resolve, 1000));
 
         // 生成PDF
@@ -313,16 +344,45 @@ router.get('/album/:albumId', authenticateToken, async (req: AuthRequest, res) =
           }
         });
 
-        pdfBuffers.push(Buffer.from(pdfBuffer));
+        const buffer = Buffer.from(pdfBuffer);
+        pdfBuffers.push(buffer);
+        console.log(`页面 ${pageData.id} PDF生成完成，缓冲区大小: ${buffer.length} bytes`);
 
       } catch (error) {
         console.error(`处理页面 ${pageData.id} 时出错:`, error);
+        // 如果是连接问题，停止处理后续页面
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if (errorMessage.includes('Connection') || errorMessage.includes('detached')) {
+          console.error('检测到连接问题，停止处理后续页面');
+          break;
+        }
         // 继续处理其他页面
+      } finally {
+        // 确保页面被关闭
+        try {
+          if (!page.isClosed()) {
+            await page.close();
+            console.log(`页面 ${pageData.id} 已关闭`);
+          }
+        } catch (closeError) {
+          console.error(`关闭页面 ${pageData.id} 时出错:`, closeError);
+        }
+
+        // 在页面处理完成后添加额外延迟，避免资源竞争
+        console.log(`页面 ${pageData.id} 处理完成，等待 3 秒...`);
+        await new Promise(resolve => setTimeout(resolve, 3000));
       }
     }
 
+    console.log(`PDF缓冲区数组长度: ${pdfBuffers.length}`);
+
     // 关闭浏览器
-    await browser.close();
+    try {
+      await browser.close();
+      console.log('浏览器已关闭');
+    } catch (closeError) {
+      console.error('关闭浏览器时出错:', closeError);
+    }
 
     if (pdfBuffers.length === 0) {
       return res.status(500).json({ error: 'PDF生成失败' });
@@ -330,21 +390,39 @@ router.get('/album/:albumId', authenticateToken, async (req: AuthRequest, res) =
 
     // 处理PDF输出
     let finalPdfBuffer: Buffer;
+    console.log(`开始处理PDF输出，缓冲区数量: ${pdfBuffers.length}`);
 
     if (pdfBuffers.length === 1) {
       // 单个页面直接返回
+      console.log('单个页面，直接返回');
       finalPdfBuffer = pdfBuffers[0];
     } else {
       // 多个页面需要合并
+      console.log('多个页面，开始合并PDF');
       const mergedPdf = await PDFDocument.create();
+      console.log('创建了新的PDF文档');
 
-      for (const pdfBuffer of pdfBuffers) {
+      let totalPages = 0;
+      for (let i = 0; i < pdfBuffers.length; i++) {
+        const pdfBuffer = pdfBuffers[i];
+        console.log(`处理第 ${i + 1} 个PDF缓冲区，大小: ${pdfBuffer.length} bytes`);
+
         const pdf = await PDFDocument.load(pdfBuffer);
+        const pageCount = pdf.getPageCount();
+        console.log(`PDF ${i + 1} 有 ${pageCount} 页`);
+
         const copiedPages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
-        copiedPages.forEach((page) => mergedPdf.addPage(page));
+        console.log(`复制了 ${copiedPages.length} 页`);
+
+        copiedPages.forEach((page) => {
+          mergedPdf.addPage(page);
+          totalPages++;
+        });
       }
 
+      console.log(`合并完成，总共 ${totalPages} 页`);
       finalPdfBuffer = Buffer.from(await mergedPdf.save());
+      console.log(`最终PDF大小: ${finalPdfBuffer.length} bytes`);
     }
 
     res.setHeader('Content-Type', 'application/pdf');
