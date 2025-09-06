@@ -30,9 +30,7 @@ router.get('/album/:albumId', authenticateToken, async (req: AuthRequest, res) =
         albumId: true,
         createdAt: true,
         updatedAt: true,
-        background: true,
-        backgroundColor: true,
-        backgroundImage: true
+        background: true
       }
     });
     
@@ -97,9 +95,7 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
         albumId: true,
         createdAt: true,
         updatedAt: true,
-        background: true,
-        backgroundColor: true,
-        backgroundImage: true
+        background: true
       }
     });
     
@@ -143,9 +139,7 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res) => {
         albumId: true,
         createdAt: true,
         updatedAt: true,
-        background: true,
-        backgroundColor: true,
-        backgroundImage: true
+        background: true
       }
     });
     
@@ -207,9 +201,7 @@ router.put('/:id/canvas', authenticateToken, async (req: AuthRequest, res) => {
         albumId: true,
         createdAt: true,
         updatedAt: true,
-        background: true,
-        backgroundColor: true,
-        backgroundImage: true
+        background: true
       }
     });
     
@@ -236,9 +228,7 @@ router.put('/:id/canvas', authenticateToken, async (req: AuthRequest, res) => {
         albumId: true,
         createdAt: true,
         updatedAt: true,
-        background: true,
-        backgroundColor: true,
-        backgroundImage: true
+        background: true
       }
     });
     
@@ -325,9 +315,7 @@ router.put('/:id/background', authenticateToken, async (req: AuthRequest, res) =
         albumId: true,
         createdAt: true,
         updatedAt: true,
-        background: true,
-        backgroundColor: true,
-        backgroundImage: true
+        background: true
       }
     });
 
@@ -352,9 +340,7 @@ router.get('/:id/background', authenticateToken, async (req: AuthRequest, res) =
         }
       },
       select: {
-        background: true,
-        backgroundColor: true,
-        backgroundImage: true
+        background: true
       }
     });
 
@@ -362,28 +348,7 @@ router.get('/:id/background', authenticateToken, async (req: AuthRequest, res) =
       return res.status(404).json({ error: '页面不存在或无权限访问' });
     }
 
-    // 向后兼容：如果没有新background字段但有旧字段，返回转换后的格式
-    let background = page.background;
-    if (!background) {
-      if (page.backgroundImage) {
-        background = {
-          type: 'image',
-          url: page.backgroundImage
-        };
-      } else if (page.backgroundColor) {
-        background = {
-          type: 'solid',
-          color: page.backgroundColor
-        };
-      } else {
-        background = {
-          type: 'solid',
-          color: '#FFFFFF'
-        };
-      }
-    }
-
-    res.json({ background });
+    res.json({ background: page.background });
   } catch (error) {
     console.error('获取页面背景错误:', error);
     res.status(500).json({ error: '服务器内部错误' });
