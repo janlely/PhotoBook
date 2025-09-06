@@ -111,12 +111,9 @@ export function useAutoSave(pageId: number | null, debounceMs = 1000): UseAutoSa
     };
   }, []);
 
-  // 页面ID变化时重置状态
+  // 页面ID变化时重置状态 - 确保完全清理所有待保存状态
   useEffect(() => {
-    setSaveStatus('saved');
-    retryCountRef.current = 0;
-    pendingSaveRef.current = null;
-    
+    // 立即清除所有定时器，防止延迟保存
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
       saveTimeoutRef.current = null;
@@ -125,6 +122,11 @@ export function useAutoSave(pageId: number | null, debounceMs = 1000): UseAutoSa
       clearTimeout(retryTimeoutRef.current);
       retryTimeoutRef.current = null;
     }
+
+    // 重置所有状态
+    setSaveStatus('saved');
+    retryCountRef.current = 0;
+    pendingSaveRef.current = null; // 确保清空待保存数据
   }, [pageId]);
 
   return {

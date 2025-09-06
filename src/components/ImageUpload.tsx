@@ -1,23 +1,23 @@
 import React, { useState, useRef } from 'react';
-import { uploadImage, getUserImages, deleteImage } from '../api/upload';
+import { uploadImage } from '../api/upload';
+import useStore from '../store/useStore';
 
-interface UploadedImage {
-  id: number;
-  filename: string;
-  originalName: string;
-  mimeType: string;
-  size: number;
-  sha256: string;
-  filePath: string;
-  createdAt: string;
-}
+// 图片接口定义（如果需要可以保留用于类型定义）
 
 const ImageUpload: React.FC = () => {
+  // 使用Zustand store
+  const {
+    images: storeImages,
+    fetchImages
+  } = useStore();
+
   const [uploading, setUploading] = useState(false);
-  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 从store获取图片数据
+  const uploadedImages = storeImages.data;
 
   // 处理文件选择和上传
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -43,10 +43,10 @@ const ImageUpload: React.FC = () => {
     try {
       const result = await uploadImage(file);
       setSuccess(`图片上传成功: ${result.image.originalName}`);
-      
-      // 刷新图片列表
-      await loadImages();
-      
+
+      // 刷新图片列表 - 使用store方法
+      await fetchImages(true);
+
       // 清空文件输入
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
@@ -59,25 +59,20 @@ const ImageUpload: React.FC = () => {
     }
   };
 
-  // 加载图片列表
-  const loadImages = async () => {
-    try {
-      const result = await getUserImages();
-      setUploadedImages(result.images);
-    } catch (err) {
-      console.error('加载图片列表失败:', err);
-      setError(err instanceof Error ? err.message : '加载图片列表失败');
-    }
+  // 加载图片列表 - 现在使用store方法
+  const loadImages = async (force = false) => {
+    await fetchImages(force);
   };
 
-  // 删除图片
+  // 删除图片 - 暂时保留原有逻辑，因为store中还没有实现图片删除
   const handleDeleteImage = async (imageId: number) => {
     if (!confirm('确定要删除这张图片吗？')) return;
 
     try {
+      const { deleteImage } = await import('../api/upload');
       await deleteImage(imageId);
       setSuccess('图片删除成功');
-      await loadImages();
+      await loadImages(true); // 强制刷新
     } catch (err) {
       console.error('删除失败:', err);
       setError(err instanceof Error ? err.message : '删除失败');
@@ -163,7 +158,7 @@ const ImageUpload: React.FC = () => {
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-medium">已上传的图片</h3>
           <button
-            onClick={loadImages}
+            onClick={() => loadImages(true)}
             className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
           >
             刷新列表

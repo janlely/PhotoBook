@@ -8,9 +8,9 @@ import PropertiesPanel from '../components/PropertiesPanel';
 import BackgroundSettingsPanel from '../components/BackgroundSettingsPanel';
 import type { Album } from '../api/albums';
 import type { Page } from '../api/pages';
-import { albumsAPI } from '../api/albums';
 import { pagesAPI } from '../api/pages';
 import { uploadImage } from '../api/upload';
+import useStore from '../store/useStore';
 import { DocumentTextIcon, PhotoIcon } from '@heroicons/react/24/outline';
 import { ItemTypes } from '../types/dnd';
 import type { ToolDragItem } from '../types/dnd';
@@ -423,8 +423,11 @@ const DraggableToolElement: React.FC<{
 const HomePageContent: React.FC = () => {
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
   const [selectedPage, setSelectedPage] = useState<Page | null>(null);
-  const [albums, setAlbums] = useState<Album[]>([]);
   const [activeTab, setActiveTab] = useState<'design' | 'properties' | 'settings'>('settings');
+
+  // 从store获取数据
+  const { albums: storeAlbums, fetchAlbums, fetchCanvasData, canvasData } = useStore();
+  const albums = storeAlbums.data;
   
   // 用于图片上传的文件输入引用
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -442,19 +445,10 @@ const HomePageContent: React.FC = () => {
    setCanvasSize
   } = useCanvas();
 
-  // 加载相册数据
-  const loadAlbums = async () => {
-    try {
-      const data = await albumsAPI.getAll();
-      setAlbums(data);
-    } catch (error) {
-      console.error('加载相册失败:', error);
-    }
-  };
-
+  // 加载相册数据 - 现在通过store管理
   useEffect(() => {
-    loadAlbums();
-  }, []);
+    fetchAlbums(); // 使用store的fetchAlbums方法
+  }, [fetchAlbums]);
 
   const handleAlbumSelect = (album: Album) => {
     setSelectedAlbum(album);
@@ -476,13 +470,36 @@ const HomePageContent: React.FC = () => {
       console.warn('No selected album, cannot set currentAlbumId');
       setCurrentAlbumId(null);
     }
-    
+
     try {
-      // 加载页面的画布数据
+      // 使用store的fetchCanvasData方法，利用缓存机制
       console.log('加载页面画布数据:', page.id);
-      const canvasData = await pagesAPI.getCanvas(page.id);
-      loadCanvasData(canvasData, page.id, selectedAlbum?.id);
-      console.log('画布数据加载成功:', canvasData);
+      await fetchCanvasData(page.id);
+
+      // 从store获取缓存的数据
+      const cachedCanvasData = canvasData[page.id];
+      if (cachedCanvasData?.data) {
+        // 转换store数据格式为PageCanvasData格式
+        const pageCanvasData = {
+          canvasSize: cachedCanvasData.data.elements.length > 0
+            ? { width: 800, height: 600 } // 默认尺寸，可以从store扩展
+            : { width: 800, height: 600 },
+          elements: cachedCanvasData.data.elements,
+          version: 1,
+          lastModified: new Date().toISOString()
+        };
+        loadCanvasData(pageCanvasData, page.id, selectedAlbum?.id);
+        console.log('画布数据从缓存加载成功');
+      } else {
+        // 如果没有缓存数据，初始化为空画布
+        console.log('缓存中没有画布数据，初始化空画布');
+        loadCanvasData({
+          canvasSize: { width: 800, height: 600 },
+          elements: [],
+          version: 1,
+          lastModified: new Date().toISOString()
+        }, page.id, selectedAlbum?.id);
+      }
     } catch (error) {
       console.error('加载画布数据失败:', error);
       // 如果加载失败，初始化为空画布
@@ -491,33 +508,24 @@ const HomePageContent: React.FC = () => {
         elements: [],
         version: 1,
         lastModified: new Date().toISOString()
-      });
+      }, page.id, selectedAlbum?.id);
     }
   };
 
   const handleCreatePage = async (albumId: number) => {
     try {
       // 找到当前相册
-      const currentAlbum = albums.find(album => album.id === albumId);
+      const currentAlbum = albums.find((album: Album) => album.id === albumId);
       if (!currentAlbum) return;
-      
+
       // 计算下一个页面数字编号
       const pageCount = currentAlbum.pages?.length || 0;
       const nextPageNumber = pageCount + 1;
       const pageName = nextPageNumber.toString();
-      
+
       // 创建新页面
       const newPage = await pagesAPI.create(pageName, albumId, '');
-      
-      // 立即更新本地状态，将新页面添加到相册中
-      setAlbums(prevAlbums => 
-        prevAlbums.map(album => 
-          album.id === albumId 
-            ? { ...album, pages: [...(album.pages || []), newPage] }
-            : album
-        )
-      );
-      
+
       // 自动选中新创建的页面
       setSelectedPage(newPage);
     } catch (error) {
@@ -527,25 +535,16 @@ const HomePageContent: React.FC = () => {
 
   const handleDeletePage = async (pageId: number, albumId: number) => {
     try {
-      // 更新本地状态，从相册中移除页面
-      setAlbums(prevAlbums => 
-        prevAlbums.map(album => 
-          album.id === albumId 
-            ? { ...album, pages: album.pages?.filter(page => page.id !== pageId) || [] }
-            : album
-        )
-      );
-      
       // 如果删除的是当前选中的页面，清空选中状态
       if (selectedPage?.id === pageId) {
         setSelectedPage(null);
       }
-      
+
       // 重新编号剩余页面（保持顺序编号）
-      const updatedAlbum = albums.find(album => album.id === albumId);
+      const updatedAlbum = albums.find((album: Album) => album.id === albumId);
       if (updatedAlbum?.pages) {
-        const remainingPages = updatedAlbum.pages.filter(page => page.id !== pageId);
-        
+        const remainingPages = updatedAlbum.pages.filter((page: Page) => page.id !== pageId);
+
         // 批量更新页面编号
         for (let i = 0; i < remainingPages.length; i++) {
           const page = remainingPages[i];
@@ -553,19 +552,6 @@ const HomePageContent: React.FC = () => {
           if (page.title !== newTitle) {
             try {
               await pagesAPI.update(page.id, newTitle, page.content);
-              // 更新本地状态中的页面标题
-              setAlbums(prevAlbums => 
-                prevAlbums.map(album => 
-                  album.id === albumId 
-                    ? { 
-                        ...album, 
-                        pages: album.pages?.map(p => 
-                          p.id === page.id ? { ...p, title: newTitle } : p
-                        ) || [] 
-                      }
-                    : album
-                )
-              );
             } catch (error) {
               console.error(`更新页面 ${page.id} 编号失败:`, error);
             }
@@ -607,15 +593,13 @@ const HomePageContent: React.FC = () => {
             <h2 className="text-lg font-semibold text-gray-900">相册管理</h2>
           </div>
           <div className="flex-1 overflow-y-auto">
-            <AlbumTree 
+            <AlbumTree
               onAlbumSelect={handleAlbumSelect}
               selectedAlbumId={selectedAlbum?.id}
               onPageSelect={handlePageSelect}
               selectedPageId={selectedPage?.id}
               onCreatePage={handleCreatePage}
               onDeletePage={handleDeletePage}
-              onAlbumsChange={setAlbums}
-              albums={albums}
             />
           </div>
         </div>
@@ -776,24 +760,7 @@ const HomePageContent: React.FC = () => {
               </div>
             )}
           </div>
-          {/* 已移动到标签页中 */}
 
-          {/* 使用说明 */}
-          {/* <div className="p-4 border-t border-gray-200">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <h4 className="text-sm font-medium text-blue-800 mb-1">
-                使用说明
-              </h4>
-              <ul className="text-xs text-blue-700 space-y-1">
-                <li>• 选择相册页面</li>
-                <li>• 拖拽工具到画布</li>
-                <li>• 双击文本框编辑内容</li>
-                <li>• 双击图片框上传图片</li>
-                <li>• 开启网格辅助对齐</li>
-                <li>• 调整画布尺寸</li>
-              </ul>
-            </div>
-          </div> */}
         </div>
       </div>
     </div>

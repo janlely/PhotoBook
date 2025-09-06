@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '@headlessui/react';
-import { albumsAPI } from '../api/albums';
 import type { Album } from '../api/albums';
 import type { Page } from '../api/pages';
 import { ChevronRightIcon, ChevronDownIcon, FolderIcon, PlusIcon, DocumentIcon, MinusIcon } from '@heroicons/react/24/outline';
 import { AlbumExportButton } from './AlbumExportButton';
+import useStore from '../store/useStore';
 
 interface AlbumTreeProps {
   onAlbumSelect: (album: Album) => void;
@@ -13,8 +13,6 @@ interface AlbumTreeProps {
   selectedPageId?: number;
   onCreatePage?: (albumId: number) => void;
   onDeletePage?: (pageId: number, albumId: number) => void;
-  onAlbumsChange?: (albums: Album[]) => void;
-  albums?: Album[]; // 新增：从外部传入相册数据
 }
 
 interface AlbumTreeItemProps {
@@ -22,7 +20,6 @@ interface AlbumTreeItemProps {
   level: number;
   onAlbumSelect: (album: Album) => void;
   selectedAlbumId?: number;
-  onRefresh: () => void;
   onPageSelect?: (page: Page) => void;
   selectedPageId?: number;
   onCreatePage?: (albumId: number) => void;
@@ -34,7 +31,6 @@ const AlbumTreeItem: React.FC<AlbumTreeItemProps> = ({
   level,
   onAlbumSelect,
   selectedAlbumId,
-  onRefresh,
   onPageSelect,
   selectedPageId,
   onCreatePage,
@@ -145,19 +141,26 @@ const AlbumTreeItem: React.FC<AlbumTreeItemProps> = ({
   );
 };
 
-const AlbumTree: React.FC<AlbumTreeProps> = ({ 
-  onAlbumSelect, 
-  selectedAlbumId, 
-  onPageSelect, 
-  selectedPageId, 
+const AlbumTree: React.FC<AlbumTreeProps> = ({
+  onAlbumSelect,
+  selectedAlbumId,
+  onPageSelect,
+  selectedPageId,
   onCreatePage,
-  onDeletePage,
-  onAlbumsChange,
-  albums: externalAlbums
+  onDeletePage
 }) => {
-  const [internalAlbums, setInternalAlbums] = useState<Album[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  // 使用Zustand store作为唯一数据源
+  const {
+    albums: storeAlbums,
+    loading,
+    errors,
+    fetchAlbums,
+    createAlbum
+  } = useStore();
+
+  // Extract albums loading state
+  const albumsLoading = loading['albums'];
+
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newAlbumTitle, setNewAlbumTitle] = useState('');
   const [creating, setCreating] = useState(false);
@@ -165,34 +168,35 @@ const AlbumTree: React.FC<AlbumTreeProps> = ({
   const [pageToDelete, setPageToDelete] = useState<{ id: number; title: string; albumId: number } | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // 优先使用外部传入的 albums，如果没有则使用内部状态
-  const albums = externalAlbums || internalAlbums;
+  // 统一使用store数据
+  const albums = storeAlbums.data;
 
-  const loadAlbums = async () => {
+  const loadAlbums = React.useCallback(async (force = false) => {
     try {
-      setLoading(true);
-      const data = await albumsAPI.getAll();
-      setInternalAlbums(data);
-      // 通知父组件数据变化
-      onAlbumsChange?.(data);
-    } catch (err: any) {
-      setError(err.response?.data?.error || '加载相册失败');
-    } finally {
-      setLoading(false);
+      await fetchAlbums(force);
+      // 数据已自动更新到store中，无需额外通知
+    } catch (error) {
+      console.error('Failed to load albums from store:', error);
+      // 错误已由store的errorHandler处理
     }
-  };
+  }, [fetchAlbums]);
 
   const handleCreateAlbum = async () => {
     if (!newAlbumTitle.trim()) return;
-    
+
     try {
       setCreating(true);
-      await albumsAPI.create(newAlbumTitle.trim());
+      await createAlbum({
+        title: newAlbumTitle.trim(),
+        children: [],
+        pages: [],
+        userId: 0 // 这将在服务端设置
+      });
       setNewAlbumTitle('');
       setShowCreateModal(false);
-      await loadAlbums(); // 重新加载相册列表
+      // 数据会自动更新，无需重新加载
     } catch (err: any) {
-      setError(err.response?.data?.error || '创建相册失败');
+      console.error('创建相册失败:', err);
     } finally {
       setCreating(false);
     }
@@ -210,8 +214,8 @@ const AlbumTree: React.FC<AlbumTreeProps> = ({
 
   const handleDeletePage = (pageId: number, albumId: number) => {
     // 找到要删除的页面信息
-    const album = albums.find(a => a.id === albumId);
-    const page = album?.pages?.find(p => p.id === pageId);
+    const album = albums.find((a: Album) => a.id === albumId);
+    const page = album?.pages?.find((p: Page) => p.id === pageId);
     if (page) {
       setPageToDelete({ id: pageId, title: page.title, albumId });
       setShowDeleteModal(true);
@@ -220,18 +224,19 @@ const AlbumTree: React.FC<AlbumTreeProps> = ({
 
   const confirmDeletePage = async () => {
     if (!pageToDelete) return;
-    
+
     try {
       setDeleting(true);
+      // 这里应该使用store的deletePage方法，但暂时保留原有逻辑
       await import('../api/pages').then(module => module.pagesAPI.delete(pageToDelete.id));
-      
+
       // 通知父组件页面已删除
       onDeletePage?.(pageToDelete.id, pageToDelete.albumId);
-      
+
       setShowDeleteModal(false);
       setPageToDelete(null);
     } catch (err: any) {
-      setError(err.response?.data?.error || '删除页面失败');
+      console.error('删除页面失败:', err);
     } finally {
       setDeleting(false);
     }
@@ -243,17 +248,28 @@ const AlbumTree: React.FC<AlbumTreeProps> = ({
   };
 
   useEffect(() => {
-    // 只有在没有外部数据时才加载
-    if (!externalAlbums) {
+    console.log('AlbumTree useEffect:', {
+      storeAlbums: storeAlbums.data,
+      albumsLoading
+    });
+
+    // 统一从store加载数据
+    if (storeAlbums.data.length === 0 && !albumsLoading) {
+      console.log('Loading albums from store');
       loadAlbums();
-    } else {
-      setLoading(false);
     }
-  }, [externalAlbums]);
+  }, [storeAlbums.data.length, albumsLoading, loadAlbums]);
 
-  const rootAlbums = albums.filter(album => !album.parentId);
+  const rootAlbums = albums.filter((album: Album) => !album.parentId);
 
-  if (loading) {
+  console.log('AlbumTree render:', {
+    albums: albums.length,
+    rootAlbums: rootAlbums.length,
+    loading,
+    storeAlbums: storeAlbums.data.length
+  });
+
+  if (albumsLoading) {
     return (
       <div className="p-4">
         <div className="animate-pulse space-y-2">
@@ -265,10 +281,11 @@ const AlbumTree: React.FC<AlbumTreeProps> = ({
     );
   }
 
-  if (error) {
+  const albumError = errors['albums'];
+  if (albumError) {
     return (
       <div className="p-4 text-center text-red-500">
-        {error}
+        {albumError}
       </div>
     );
   }
@@ -288,7 +305,7 @@ const AlbumTree: React.FC<AlbumTreeProps> = ({
                 新建
               </button>
               <button
-                onClick={loadAlbums}
+                onClick={() => loadAlbums(true)}
                 className="text-sm text-indigo-600 hover:text-indigo-500"
               >
                 刷新
@@ -311,7 +328,6 @@ const AlbumTree: React.FC<AlbumTreeProps> = ({
                 level={0}
                 onAlbumSelect={onAlbumSelect}
                 selectedAlbumId={selectedAlbumId}
-                onRefresh={loadAlbums}
                 onPageSelect={onPageSelect}
                 selectedPageId={selectedPageId}
                 onCreatePage={onCreatePage}

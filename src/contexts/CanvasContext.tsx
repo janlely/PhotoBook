@@ -1,10 +1,10 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import type { ReactNode } from 'react';
-import { useAutoSave } from '../hooks/useAutoSave';
-import type { SaveStatus } from '../hooks/useAutoSave';
 import type { PageCanvasData } from '../api/pages';
 import type { BackgroundStyle } from '../types/backgroundStyle';
-import { albumsAPI } from '../api/albums';
+import useStore from '../store/useStore';
+
+type SaveStatus = 'saved' | 'saving' | 'error' | 'pending';
 
 // Base types for canvas elements
 export interface Point {
@@ -216,9 +216,9 @@ interface CanvasProviderProps {
 
 export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
   const [state, setState] = useState<CanvasState>(initialState);
-  
-  // 自动保存集成
-  const { triggerSave, saveStatus, forceSave, clearError } = useAutoSave(state.currentPageId, 1000);
+
+  // 使用Zustand store
+  const store = useStore();
 
   const generateId = useCallback(() => {
     return `element_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -236,20 +236,19 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
     });
   }, []);
 
-  // 监听状态变化并触发保存
+  // 监听状态变化并触发保存 - 使用store的统一防抖机制
   useEffect(() => {
-    // 只有在有页面ID时才触发保存
+    // 只有在有页面ID且元素真正发生变化时才触发保存
     if (state.currentPageId && state.elements.length >= 0) {
-      const canvasData: Omit<PageCanvasData, 'lastModified'> = {
-        canvasSize: state.canvasSize,
+      const canvasData = {
         elements: state.elements,
-        version: 1
+        background: state.background
       };
-      
+
       console.log('自动保存触发，元素数量:', state.elements.length, '页面ID:', state.currentPageId);
-      triggerSave(canvasData);
+      store.updateCanvasData(state.currentPageId, canvasData);
     }
-  }, [state.elements, state.canvasSize, state.currentPageId, triggerSave]);
+  }, [state.elements, state.canvasSize, state.currentPageId, store]); // 包含所有必要的依赖
 
   const addElement = useCallback((elementData: Omit<CanvasElement, 'id' | 'createdAt' | 'updatedAt'>) => {
     const id = generateId();
@@ -697,29 +696,56 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
     let backgroundScope = initialState.backgroundScope;
 
     console.log('加载数据:', data, 'pageId:', pageId, 'albumId:', albumId);
-    // Load background data based on album's isUseGlobalBackground field
+
+    // 尝试从store获取背景数据，避免重复API调用
     if (albumId) {
       try {
-        const { albumsAPI } = await import('../api/albums');
-        const albumBackgroundData = await albumsAPI.getBackground(albumId);
-        console.log('DEBUG: albumBackgroundData:', albumBackgroundData);
+        // 首先尝试从store获取数据
+        const album = store.albums.data.find(a => a.id === albumId);
+        console.log('DEBUG: album from store:', album);
 
-        if (albumBackgroundData.isUseGlobalBackground) {
-          // Use global background (from page)
-          backgroundScope = 'page';
-          if (pageId) {
-            try {
-              const { pagesAPI } = await import('../api/pages');
-              const pageBackgroundData = await pagesAPI.getBackground(pageId);
-              background = pageBackgroundData.background;
-            } catch (error) {
-              console.error('Failed to load page background data:', error);
+        if (album?.background && album?.isUseGlobalBackground !== undefined) {
+          // 如果相册有完整的背景设置数据
+          if (album.isUseGlobalBackground) {
+            // 使用页面背景
+            backgroundScope = 'page';
+            if (pageId) {
+              try {
+                const { pagesAPI } = await import('../api/pages');
+                const pageBackgroundData = await pagesAPI.getBackground(pageId);
+                background = pageBackgroundData.background;
+              } catch (error) {
+                console.error('Failed to load page background data:', error);
+              }
             }
+          } else {
+            // 使用相册背景
+            backgroundScope = 'album';
+            background = album.background;
           }
         } else {
-          // Use album background
-          backgroundScope = 'album';
-          background = albumBackgroundData.background;
+          // store中数据不完整，从API获取最新的数据
+          const { albumsAPI } = await import('../api/albums');
+          const albumBackgroundData = await albumsAPI.getBackground(albumId);
+          console.log('DEBUG: albumBackgroundData from API:', albumBackgroundData);
+
+          if (albumBackgroundData.isUseGlobalBackground) {
+            // Use global background (from page)
+            backgroundScope = 'page';
+            if (pageId) {
+              try {
+                const { pagesAPI } = await import('../api/pages');
+                const pageBackgroundData = await pagesAPI.getBackground(pageId);
+                background = pageBackgroundData.background;
+              } catch (error) {
+                console.error('Failed to load page background data:', error);
+              }
+            }
+          } else {
+            // Use album background
+            backgroundScope = 'album';
+            background = albumBackgroundData.background;
+          }
         }
       } catch (error) {
         console.error('Failed to load album background data:', error);
@@ -755,7 +781,7 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
         historyIndex: 0,
       };
     });
-  }, []);
+  }, [store.albums.data]);
 
   const contextValue: CanvasContextType = {
     state,
@@ -794,9 +820,16 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
     setCurrentPageId,
     setCurrentAlbumId,
     loadCanvasData,
-    saveStatus,
-    forceSave,
-    clearSaveError: clearError,
+    saveStatus: store.saveStatus,
+    forceSave: () => {
+      if (store.pendingCanvasData) {
+        store.updateCanvasData(store.pendingCanvasData.pageId, store.pendingCanvasData.data);
+      }
+    },
+    clearSaveError: () => {
+      // 简单的错误清除逻辑
+      console.log('清除保存错误');
+    },
   setBackground: (background: BackgroundStyle) => {
     setState(prev => ({
       ...prev,
@@ -809,19 +842,16 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
       backgroundScope: scope
     }));
 
-    // Sync with backend's isUseGlobalBackground setting
+    // 使用store的方法来更新相册的背景设置
     try {
-      if (scope === 'page' && state.currentAlbumId) {
-        // When switching to page scope, set album to use global (page) background
-        await albumsAPI.updateGlobalBackgroundSetting(state.currentAlbumId, true);
-      } else if (scope === 'album' && state.currentAlbumId) {
-        // When switching to album scope, set album to use album background
-        await albumsAPI.updateGlobalBackgroundSetting(state.currentAlbumId, false);
+      if (state.currentAlbumId) {
+        const isUseGlobalBackground = scope === 'page';
+        await store.updateAlbumBackgroundSetting(state.currentAlbumId, isUseGlobalBackground);
       }
     } catch (error) {
       console.error('Failed to sync background scope with backend:', error);
     }
-  }, [state.currentAlbumId]),
+  }, [state.currentAlbumId, store]),
   setPreviewMode,
   exportCanvasAsImage,
   exportCanvasToPDF,

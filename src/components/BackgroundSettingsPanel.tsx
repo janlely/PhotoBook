@@ -4,11 +4,13 @@ import type { SolidStyle, GradientStyle, ImageStyle } from '../types/backgroundS
 import { pagesAPI } from '../api/pages';
 import { albumsAPI } from '../api/albums';
 import { uploadImage } from '../api/upload';
+import useStore from '../store/useStore';
 import BackgroundScopeSelector from './BackgroundScopeSelector';
 import ToggleSelector from './ToggleSelector';
 
 const BackgroundSettingsPanel: React.FC = () => {
   const { state, setBackground } = useCanvas();
+  const { updateAlbumBackgroundSetting } = useStore();
   const bgImageInputRef = useRef<HTMLInputElement>(null);
 
   const handleColorChange = async (color: string) => {
@@ -68,13 +70,13 @@ const BackgroundSettingsPanel: React.FC = () => {
         await pagesAPI.updateBackground(state.currentPageId, background);
         // Update album's global background setting to use page background
         if (state.currentAlbumId) {
-          await albumsAPI.updateGlobalBackgroundSetting(state.currentAlbumId, true);
+          await updateAlbumBackgroundSetting(state.currentAlbumId, true);
         }
       } else if (state.backgroundScope === 'album' && state.currentAlbumId) {
         // Save to album - affects all pages in the album (global background)
         await albumsAPI.updateBackground(state.currentAlbumId, background);
         // Update album's global background setting to use album background
-        await albumsAPI.updateGlobalBackgroundSetting(state.currentAlbumId, false);
+        await updateAlbumBackgroundSetting(state.currentAlbumId, false);
       }
     } catch (error) {
       console.error('Failed to save background:', error);
