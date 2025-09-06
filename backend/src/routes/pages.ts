@@ -72,16 +72,19 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.user?.userId;
     const { title, content, albumId } = req.body;
-    
+
+    console.log('🔄 Backend: 创建页面开始', { userId, title, albumId, timestamp: Date.now() });
+
     // 验证相册属于当前用户
     const album = await prisma.album.findFirst({
       where: { id: albumId, userId }
     });
-    
+
     if (!album) {
+      console.log('⚠️ Backend: 相册不存在或无权限访问', { albumId, userId });
       return res.status(404).json({ error: '相册不存在或无权限访问' });
     }
-    
+
     const page = await prisma.page.create({
       data: {
         title,
@@ -98,10 +101,12 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
         background: true
       }
     });
-    
+
+    console.log('✅ Backend: 页面创建成功', { pageId: page.id, title, albumId, timestamp: Date.now() });
+
     res.status(201).json(page);
   } catch (error) {
-    console.error('创建页面错误:', error);
+    console.error('❌ Backend: 创建页面错误:', error);
     res.status(500).json({ error: '服务器内部错误' });
   }
 });

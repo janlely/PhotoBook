@@ -51,8 +51,20 @@ export interface SyncConfig {
   batchSize: number;
 }
 
+// 用户接口
+export interface User {
+  id: number;
+  email: string;
+  name?: string;
+  username?: string;
+}
+
 // 全局状态接口
 export interface GlobalState {
+  // 用户状态
+  user: User | null;
+  isAuthenticated: boolean;
+
   // 数据缓存
   albums: CachedData<Album[]>;
   pages: Record<number, CachedData<Page[]>>; // 按相册ID分组
@@ -77,6 +89,11 @@ export interface GlobalState {
   saveStatus: 'saved' | 'saving' | 'error' | 'pending';
   saveTimeoutId: NodeJS.Timeout | null;
   pendingCanvasData: { pageId: number; data: { elements: CanvasElement[]; background: BackgroundStyle; canvasSize?: Size } } | null;
+
+  // 用户操作
+  login: (identifier: string, password: string) => Promise<void>;
+  logout: () => void;
+  checkAuth: () => void;
 
   // 操作方法
   // 数据获取
@@ -126,6 +143,10 @@ const CACHE_EXPIRY = 60 * 60 * 1000;
 // 创建Store (暂时禁用persist来测试)
 const useStore = create<GlobalState>()(
     (set, get) => ({
+      // 用户初始状态
+      user: null,
+      isAuthenticated: false,
+
       // 初始状态
       albums: {
         data: [],
@@ -158,15 +179,74 @@ const useStore = create<GlobalState>()(
       saveTimeoutId: null,
       pendingCanvasData: null,
 
+      // 用户方法
+      login: async (identifier: string, password: string) => {
+        const { authAPI } = await import('../api/auth');
+        const response = await authAPI.login(identifier, password);
+
+        // 保存token到localStorage
+        localStorage.setItem('token', response.token);
+
+        // 更新用户状态
+        set({
+          user: response.user,
+          isAuthenticated: true
+        });
+      },
+
+      logout: () => {
+        // 同步导入authAPI
+        import('../api/auth').then(({ authAPI }) => {
+          authAPI.logout();
+        });
+
+        // 清空用户状态
+        set({
+          user: null,
+          isAuthenticated: false
+        });
+      },
+
+      checkAuth: () => {
+        // 同步导入authAPI
+        import('../api/auth').then(({ authAPI }) => {
+          const user = authAPI.getCurrentUser();
+          const isAuthenticated = authAPI.isAuthenticated();
+
+          set({
+            user,
+            isAuthenticated
+          });
+        });
+      },
+
       // 数据获取方法
       fetchAlbums: withErrorHandler(async (force = false) => {
         const state = get();
         const cacheKey = 'albums';
 
+        console.log('🏪 Store: fetchAlbums 被调用', {
+          force,
+          hasCache: !!state.albums.data,
+          cacheLength: state.albums.data?.length || 0,
+          isDataStale: state.isDataStale(state.albums),
+          isLoading: state.loading[cacheKey],
+          timestamp: Date.now()
+        });
+
         // 检查缓存是否有效
         if (!force && !state.isDataStale(state.albums)) {
+          console.log('🏪 Store: 使用缓存数据，跳过API调用');
           return;
         }
+
+        // 防止重复调用：如果正在加载中，直接返回
+        if (state.loading[cacheKey]) {
+          console.log('🏪 Store: 正在加载中，跳过重复调用');
+          return;
+        }
+
+        console.log('🏪 Store: 开始API调用获取相册数据', { timestamp: Date.now() });
 
         set(state => ({
           loading: { ...state.loading, [cacheKey]: true },
@@ -176,6 +256,11 @@ const useStore = create<GlobalState>()(
         try {
           const { albumsAPI } = await import('../api/albums');
           const data = await albumsAPI.getAll();
+
+          console.log('🏪 Store: API调用成功', {
+            albumsCount: data.length,
+            timestamp: Date.now()
+          });
 
           // 记录API调用
           performanceMonitor.recordApiCall();
@@ -189,8 +274,10 @@ const useStore = create<GlobalState>()(
             },
             loading: { ...state.loading, [cacheKey]: false }
           }));
+
+          console.log('🏪 Store: 相册数据已更新到store', { timestamp: Date.now() });
         } catch (error) {
-          console.error('Failed to fetch albums:', error);
+          console.error('🏪 Store: 获取相册失败:', error);
           performanceMonitor.recordError();
           set(state => ({
             loading: { ...state.loading, [cacheKey]: false },
@@ -347,26 +434,26 @@ const useStore = create<GlobalState>()(
 
       // 数据操作方法
       createAlbum: async (albumData) => {
+        console.log('🏪 Store: createAlbum 开始', { title: albumData.title, parentId: albumData.parentId, timestamp: Date.now() });
         const { albumsAPI } = await import('../api/albums');
         const newAlbum = await albumsAPI.create(albumData.title, albumData.parentId);
+        console.log('🏪 Store: createAlbum 完成', { albumId: newAlbum.id, timestamp: Date.now() });
 
         // 更新本地缓存
-        set(state => ({
-          albums: {
-            ...state.albums,
-            data: [...state.albums.data, newAlbum],
-            version: state.albums.version + 1
-          }
-        }));
-
-        // 记录变更用于同步
-        const { syncService } = await import('../services/syncService');
-        syncService.addChange({
-          type: ChangeType.CREATE,
-          entityType: 'album',
-          entityId: newAlbum.id,
-          data: albumData
+        set(state => {
+          console.log('🏪 Store: 更新本地缓存', { albumId: newAlbum.id, timestamp: Date.now() });
+          return {
+            albums: {
+              ...state.albums,
+              data: [...state.albums.data, newAlbum],
+              version: state.albums.version + 1
+            }
+          };
         });
+
+        // 注意：这里不再添加同步变更，因为数据已经在服务器上成功创建了
+        // 同步服务只用于离线状态下的数据同步
+        console.log('🏪 Store: 跳过同步变更（数据已在服务器创建）', { albumId: newAlbum.id, timestamp: Date.now() });
 
         return newAlbum;
       },
@@ -427,8 +514,10 @@ const useStore = create<GlobalState>()(
        * 4. 遵循单一数据源原则，避免组件直接调用API
        */
       createPage: async (pageData) => {
+        console.log('🏪 Store: createPage 开始', { title: pageData.title, albumId: pageData.albumId, timestamp: Date.now() });
         const { pagesAPI } = await import('../api/pages');
         const newPage = await pagesAPI.create(pageData.title, pageData.albumId, pageData.content);
+        console.log('🏪 Store: createPage 完成', { pageId: newPage.id, timestamp: Date.now() });
 
         // 更新本地缓存 - 同时更新pages和albums缓存，确保数据一致性
         set(state => {
@@ -458,14 +547,9 @@ const useStore = create<GlobalState>()(
           };
         });
 
-        // 记录变更用于同步
-        const { syncService } = await import('../services/syncService');
-        syncService.addChange({
-          type: ChangeType.CREATE,
-          entityType: 'page',
-          entityId: newPage.id,
-          data: pageData
-        });
+        // 注意：这里不再添加同步变更，因为数据已经在服务器上成功创建了
+        // 同步服务只用于离线状态下的数据同步
+        console.log('🏪 Store: 跳过同步变更（数据已在服务器创建）', { pageId: newPage.id, timestamp: Date.now() });
 
         return newPage;
       },

@@ -30,7 +30,9 @@ export const albumsAPI = {
 
   // 创建新相册
   create: async (title: string, parentId?: number): Promise<Album> => {
+    console.log('🔄 API: 创建相册开始', { title, parentId, timestamp: Date.now() });
     const response = await api.post('/albums', { title, parentId });
+    console.log('✅ API: 创建相册成功', { albumId: response.data.id, timestamp: Date.now() });
     return response.data;
   },
 

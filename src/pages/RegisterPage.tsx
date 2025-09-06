@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { authAPI } from '../api/auth';
 
 const RegisterPage: React.FC = () => {
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -16,7 +17,7 @@ const RegisterPage: React.FC = () => {
     setLoading(true);
 
     try {
-      const response = await authAPI.register(email, password, name);
+      const response = await authAPI.register(email, password, name, username);
       localStorage.setItem('token', response.token);
       navigate('/');
     } catch (err: any) {
@@ -52,15 +53,30 @@ const RegisterPage: React.FC = () => {
           
           <div className="space-y-4">
             <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="username" className="block text-sm font-medium text-gray-700">
                 用户名
+              </label>
+              <input
+                id="username"
+                name="username"
+                type="text"
+                required
+                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                placeholder="用户名"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+              />
+            </div>
+            <div>
+              <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+                显示名称
               </label>
               <input
                 id="name"
                 name="name"
                 type="text"
                 className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="用户名（可选）"
+                placeholder="显示名称（可选）"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />

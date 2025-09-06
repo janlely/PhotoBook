@@ -33,7 +33,9 @@ export const pagesAPI = {
 
   // 创建新页面
   create: async (title: string, albumId: number, content?: string): Promise<Page> => {
+    console.log('🔄 API: 创建页面开始', { title, albumId, timestamp: Date.now() });
     const response = await api.post('/pages', { title, albumId, content });
+    console.log('✅ API: 创建页面成功', { pageId: response.data.id, timestamp: Date.now() });
     return response.data;
   },
 

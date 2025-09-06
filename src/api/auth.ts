@@ -33,14 +33,14 @@ api.interceptors.response.use(
 // 认证相关API
 export const authAPI = {
   // 用户注册
-  register: async (email: string, password: string, name?: string) => {
-    const response = await api.post('/auth/register', { email, password, name });
+  register: async (email: string, password: string, name?: string, username?: string) => {
+    const response = await api.post('/auth/register', { email, password, name, username });
     return response.data;
   },
 
   // 用户登录
-  login: async (email: string, password: string) => {
-    const response = await api.post('/auth/login', { email, password });
+  login: async (identifier: string, password: string) => {
+    const response = await api.post('/auth/login', { identifier, password });
     return response.data;
   },
 

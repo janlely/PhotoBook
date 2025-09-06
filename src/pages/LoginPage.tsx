@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { authAPI } from '../api/auth';
 
 const LoginPage: React.FC = () => {
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -15,7 +15,7 @@ const LoginPage: React.FC = () => {
     setLoading(true);
 
     try {
-      const response = await authAPI.login(email, password);
+      const response = await authAPI.login(identifier, password);
       localStorage.setItem('token', response.token);
       navigate('/');
     } catch (err: any) {
@@ -51,18 +51,18 @@ const LoginPage: React.FC = () => {
           
           <div className="rounded-md shadow-sm -space-y-px">
             <div>
-              <label htmlFor="email" className="sr-only">
-                邮箱地址
+              <label htmlFor="identifier" className="sr-only">
+                用户名或邮箱
               </label>
               <input
-                id="email"
-                name="email"
-                type="email"
+                id="identifier"
+                name="identifier"
+                type="text"
                 required
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="邮箱地址"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                placeholder="用户名或邮箱地址"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
               />
             </div>
             <div>

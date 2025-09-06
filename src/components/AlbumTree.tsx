@@ -145,7 +145,10 @@ const AlbumTreeItem: React.FC<AlbumTreeItemProps> = ({
           {/* 新建页面按钮 */}
           <div
             className="flex items-center px-2 py-1 ml-6 rounded cursor-pointer hover:bg-gray-50 text-gray-500"
-            onClick={() => onCreatePage?.(album.id)}
+            onClick={() => {
+              console.log('🎯 AlbumTree: 新建页面按钮被点击', { albumId: album.id, timestamp: Date.now() });
+              onCreatePage?.(album.id);
+            }}
           >
             <PlusIcon className="h-4 w-4 text-gray-400 mr-2" />
             <span className="text-sm">新建页面</span>
@@ -190,16 +193,19 @@ const AlbumTree: React.FC<AlbumTreeProps> = ({
   const [showDeleteAlbumModal, setShowDeleteAlbumModal] = useState(false);
   const [albumToDelete, setAlbumToDelete] = useState<{ id: number; title: string } | null>(null);
   const [deletingAlbum, setDeletingAlbum] = useState(false);
+  const [creatingPage, setCreatingPage] = useState(false);
 
   // 统一使用store数据
   const albums = storeAlbums.data;
 
   const loadAlbums = React.useCallback(async (force = false) => {
+    console.log('🎯 AlbumTree: loadAlbums 被调用', { force, timestamp: Date.now() });
     try {
       await fetchAlbums(force);
+      console.log('🎯 AlbumTree: loadAlbums 完成', { timestamp: Date.now() });
       // 数据已自动更新到store中，无需额外通知
     } catch (error) {
-      console.error('Failed to load albums from store:', error);
+      console.error('🎯 AlbumTree: loadAlbums 失败:', error);
       // 错误已由store的errorHandler处理
     }
   }, [fetchAlbums]);
@@ -207,7 +213,10 @@ const AlbumTree: React.FC<AlbumTreeProps> = ({
   const handleCreateAlbum = async () => {
     if (!newAlbumTitle.trim()) return;
 
+    console.log('🎯 AlbumTree: handleCreateAlbum 被调用', { title: newAlbumTitle.trim(), timestamp: Date.now() });
+
     try {
+      console.log('🔄 AlbumTree: 开始创建相册', { title: newAlbumTitle.trim(), timestamp: Date.now() });
       setCreating(true);
       await createAlbum({
         title: newAlbumTitle.trim(),
@@ -215,12 +224,14 @@ const AlbumTree: React.FC<AlbumTreeProps> = ({
         pages: [],
         userId: 0 // 这将在服务端设置
       });
+      console.log('✅ AlbumTree: 相册创建成功', { title: newAlbumTitle.trim(), timestamp: Date.now() });
       setNewAlbumTitle('');
       setShowCreateModal(false);
       // 数据会自动更新，无需重新加载
     } catch (err: any) {
-      console.error('创建相册失败:', err);
+      console.error('❌ AlbumTree: 创建相册失败:', err);
     } finally {
+      console.log('🔚 AlbumTree: 重置相册创建状态', { timestamp: Date.now() });
       setCreating(false);
     }
   };
@@ -246,26 +257,43 @@ const AlbumTree: React.FC<AlbumTreeProps> = ({
   };
 
   /**
-   * 处理页面创建的最佳实践：
-   * 1. 使用store方法而不是直接调用API，确保状态一致性
-   * 2. 页面名称现在基于渲染时的顺序自动计算，无需存储
-   * 3. store会自动更新所有相关缓存，无需手动刷新
-   * 4. 错误处理应该在UI层面提供用户反馈
-   */
-  const handleCreatePage = async (albumId: number) => {
-    try {
-      // 页面名称现在在渲染时根据顺序自动计算，这里只需提供一个默认标题
-      await createPage({
-        title: '新页面', // 存储时使用默认标题，渲染时会显示为数字
-        albumId,
-        content: '{}'
-      });
-      // 页面创建成功后，store会自动更新状态，AlbumTree会重新渲染
-    } catch (error) {
-      console.error('创建页面失败:', error);
-      // 可以在这里添加错误处理，比如显示错误提示
-    }
-  };
+    * 处理页面创建的最佳实践：
+    * 1. 使用store方法而不是直接调用API，确保状态一致性
+    * 2. 页面名称现在基于渲染时的顺序自动计算，无需存储
+    * 3. store会自动更新所有相关缓存，无需手动刷新
+    * 4. 错误处理应该在UI层面提供用户反馈
+    * 5. 添加防重复调用机制，防止React StrictMode导致的重复创建
+    */
+   const handleCreatePage = async (albumId: number) => {
+     console.log('🎯 AlbumTree: handleCreatePage 被调用', { albumId, creatingPage, timestamp: Date.now() });
+ 
+     // 防止重复调用
+     if (creatingPage) {
+       console.log('🚫 AlbumTree: 页面创建中，跳过重复调用', { albumId, timestamp: Date.now() });
+       return;
+     }
+ 
+     try {
+       console.log('🔄 AlbumTree: 开始创建页面', { albumId, timestamp: Date.now() });
+       setCreatingPage(true);
+ 
+       // 页面名称现在在渲染时根据顺序自动计算，这里只需提供一个默认标题
+       await createPage({
+         title: '新页面', // 存储时使用默认标题，渲染时会显示为数字
+         albumId,
+         content: '{}'
+       });
+ 
+       console.log('✅ AlbumTree: 页面创建成功', { albumId, timestamp: Date.now() });
+       // 页面创建成功后，store会自动更新状态，AlbumTree会重新渲染
+     } catch (error) {
+       console.error('❌ AlbumTree: 创建页面失败:', error);
+       // 可以在这里添加错误处理，比如显示错误提示
+     } finally {
+       console.log('🔚 AlbumTree: 重置创建状态', { albumId, timestamp: Date.now() });
+       setCreatingPage(false);
+     }
+   };
 
   const confirmDeletePage = async () => {
     if (!pageToDelete) return;
@@ -318,15 +346,22 @@ const AlbumTree: React.FC<AlbumTreeProps> = ({
   };
 
   useEffect(() => {
-    // console.log('AlbumTree useEffect:', {
-    //   storeAlbums: storeAlbums.data,
-    //   albumsLoading
-    // });
+    console.log('🎯 AlbumTree: useEffect 触发', {
+      storeAlbumsLength: storeAlbums.data.length,
+      albumsLoading,
+      timestamp: Date.now()
+    });
 
     // 统一从store加载数据
     if (storeAlbums.data.length === 0 && !albumsLoading) {
-      console.log('Loading albums from store');
+      console.log('🎯 AlbumTree: 条件满足，开始加载相册', { timestamp: Date.now() });
       loadAlbums();
+    } else {
+      console.log('🎯 AlbumTree: 条件不满足，跳过加载', {
+        hasData: storeAlbums.data.length > 0,
+        isLoading: albumsLoading,
+        timestamp: Date.now()
+      });
     }
   }, [storeAlbums.data.length, albumsLoading, loadAlbums]);
 
@@ -442,7 +477,10 @@ const AlbumTree: React.FC<AlbumTreeProps> = ({
                 取消
               </button>
               <button
-                onClick={handleCreateAlbum}
+                onClick={() => {
+                  console.log('🎯 AlbumTree: 创建相册按钮被点击', { title: newAlbumTitle, timestamp: Date.now() });
+                  handleCreateAlbum();
+                }}
                 disabled={!newAlbumTitle.trim() || creating}
                 className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >

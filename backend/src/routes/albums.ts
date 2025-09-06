@@ -55,7 +55,9 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.user?.userId;
     const { title, parentId } = req.body;
-    
+
+    console.log('🔄 Backend: 创建相册开始', { userId, title, parentId, timestamp: Date.now() });
+
     const album = await prisma.album.create({
       data: {
         title,
@@ -90,10 +92,12 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
         }
       }
     });
-    
+
+    console.log('✅ Backend: 相册创建成功', { albumId: album.id, title, timestamp: Date.now() });
+
     res.status(201).json(album);
   } catch (error) {
-    console.error('创建相册错误:', error);
+    console.error('❌ Backend: 创建相册错误:', error);
     res.status(500).json({ error: '服务器内部错误' });
   }
 });

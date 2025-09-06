@@ -68,6 +68,19 @@ const BackgroundSettingsPanel: React.FC = () => {
       if (state.backgroundScope === 'page' && state.currentPageId) {
         // Save to page - affects only current page
         await pagesAPI.updateBackground(state.currentPageId, background);
+
+        // Update store cache for page background
+        const store = useStore.getState();
+        store.pageBackgrounds = {
+          ...store.pageBackgrounds,
+          [state.currentPageId]: {
+            data: background,
+            lastFetched: Date.now(),
+            expiresAt: Date.now() + (60 * 60 * 1000), // 60 minutes
+            version: (store.pageBackgrounds[state.currentPageId]?.version || 0) + 1
+          }
+        };
+
         // Update album's global background setting to use page background
         if (state.currentAlbumId) {
           await updateAlbumBackgroundSetting(state.currentAlbumId, true);

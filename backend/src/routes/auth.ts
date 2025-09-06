@@ -9,31 +9,43 @@ const prisma = new PrismaClient();
 // 用户注册
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, name } = req.body;
-    
-    // 检查用户是否已存在
-    const existingUser = await prisma.user.findUnique({
+    const { email, password, name, username } = req.body;
+
+    // 检查邮箱是否已存在
+    const existingEmail = await prisma.user.findUnique({
       where: { email }
     });
-    
-    if (existingUser) {
-      res.status(400).json({ error: '用户已存在' });
+
+    if (existingEmail) {
+      res.status(400).json({ error: '邮箱已被注册' });
       return;
     }
-    
+
+    // 检查用户名是否已存在
+    const existingUsername = await prisma.user.findUnique({
+      where: { username }
+    });
+
+    if (existingUsername) {
+      res.status(400).json({ error: '用户名已被使用' });
+      return;
+    }
+
     // 加密密码
     const hashedPassword = await bcrypt.hash(password, 10);
-    
+
     // 创建新用户
     const user = await prisma.user.create({
       data: {
         email,
+        username,
         password: hashedPassword,
         name
       },
       select: {
         id: true,
         email: true,
+        username: true,
         name: true,
         createdAt: true,
         updatedAt: true
@@ -61,15 +73,20 @@ router.post('/register', async (req, res) => {
 // 用户登录
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
-    
-    // 查找用户
-    const user = await prisma.user.findUnique({
-      where: { email }
+    const { identifier, password } = req.body;
+
+    // 查找用户（通过用户名或邮箱）
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: identifier },
+          { username: identifier }
+        ]
+      }
     });
-    
+
     if (!user) {
-      res.status(400).json({ error: '用户不存在' });
+      res.status(400).json({ error: '用户名或邮箱不存在' });
       return;
     }
     
@@ -93,6 +110,7 @@ router.post('/login', async (req, res) => {
       user: {
         id: user.id,
         email: user.email,
+        username: user.username,
         name: user.name,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt

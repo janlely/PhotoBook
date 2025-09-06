@@ -158,26 +158,27 @@ const DraggableToolElement: React.FC<{
   );
 };
 
+
 // 画布内容组件 - 在CanvasProvider内部，可以访问canvas context
-  const CanvasContent: React.FC<{
-  selectedPage: Page | null;
-  selectedAlbum: Album | null;
-  fileInputRef: React.RefObject<HTMLInputElement | null>;
-  currentImageElementRef: React.RefObject<string | null>;
-  onElementDoubleClick: (element: CanvasElement) => void;
-  onImageUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  isCanvasLoading: boolean;
+   const CanvasContent: React.FC<{
+   selectedPage: Page | null;
+   selectedAlbum: Album | null;
+   fileInputRef: React.RefObject<HTMLInputElement | null>;
+   currentImageElementRef: React.RefObject<string | null>;
+   onElementDoubleClick: (element: CanvasElement) => void;
+   onImageUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
+   isCanvasLoading: boolean;
 }> = ({
-  selectedPage,
-  selectedAlbum,
-  fileInputRef,
-  currentImageElementRef,
-  onElementDoubleClick,
-  onImageUpload,
-  isCanvasLoading
+   selectedPage,
+   selectedAlbum,
+   fileInputRef,
+   currentImageElementRef,
+   onElementDoubleClick,
+   onImageUpload,
+   isCanvasLoading
 }) => {
-  const { updateElement, state, setZoom, toggleGrid } = useCanvas();
-  const canvasContainerRef = useRef<HTMLDivElement>(null);
+   const { updateElement, state, setZoom, toggleGrid } = useCanvas();
+   const canvasContainerRef = useRef<HTMLDivElement>(null);
   
   // 计算并设置最佳缩放比例
   const calculateOptimalZoom = React.useCallback(() => {
@@ -315,13 +316,13 @@ const DraggableToolElement: React.FC<{
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
               </svg>
             </button>
-            
+
             {/* 缩放比例选择器 - 使用自定义组件 */}
             <ZoomControl
               value={state.zoom}
               onChange={setZoom}
             />
-            
+
             {/* 加号按钮 */}
             <button
               onClick={() => setZoom(Math.min(5, state.zoom + 0.1))}
@@ -332,7 +333,7 @@ const DraggableToolElement: React.FC<{
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
             </button>
-            
+
             {/* 网格显隐开关 */}
             <button
               onClick={toggleGrid}
@@ -351,6 +352,7 @@ const DraggableToolElement: React.FC<{
               </span>
             </button>
           </div>
+
         </div>
       </div>
       
@@ -443,6 +445,7 @@ const HomePageContent: React.FC = () => {
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
   const [selectedPage, setSelectedPage] = useState<Page | null>(null);
   const [activeTab, setActiveTab] = useState<'design' | 'properties' | 'settings'>('settings');
+  const [creatingPage, setCreatingPage] = useState(false);
 
   // 从store获取数据
   const { albums: storeAlbums, fetchAlbums, fetchCanvasData, canvasData, canvasLoading } = useStore();
@@ -466,6 +469,7 @@ const HomePageContent: React.FC = () => {
 
   // 加载相册数据 - 现在通过store管理
   useEffect(() => {
+    console.log('🎯 CanvasEditPage: useEffect 触发，调用fetchAlbums', { timestamp: Date.now() });
     fetchAlbums(); // 使用store的fetchAlbums方法
   }, [fetchAlbums]);
 
@@ -602,23 +606,44 @@ const HomePageContent: React.FC = () => {
   };
 
   const handleCreatePage = async (albumId: number) => {
+    console.log('🎯 CanvasEditPage: handleCreatePage 被调用', { albumId, creatingPage, timestamp: Date.now() });
+
+    // 防止重复调用
+    if (creatingPage) {
+      console.log('🚫 CanvasEditPage: 页面创建中，跳过重复调用', { albumId, timestamp: Date.now() });
+      return;
+    }
+
     try {
+      console.log('🔄 CanvasEditPage: 开始创建页面', { albumId, timestamp: Date.now() });
+      setCreatingPage(true);
+
       // 找到当前相册
       const currentAlbum = albums.find((album: Album) => album.id === albumId);
-      if (!currentAlbum) return;
+      if (!currentAlbum) {
+        console.log('⚠️ CanvasEditPage: 未找到相册', { albumId });
+        return;
+      }
 
       // 计算下一个页面数字编号
       const pageCount = currentAlbum.pages?.length || 0;
       const nextPageNumber = pageCount + 1;
       const pageName = nextPageNumber.toString();
 
+      console.log('📝 CanvasEditPage: 计算页面名称', { albumId, pageCount, nextPageNumber, pageName });
+
       // 创建新页面
       const newPage = await pagesAPI.create(pageName, albumId, '');
+
+      console.log('✅ CanvasEditPage: 页面创建成功', { albumId, pageId: newPage.id, pageName });
 
       // 自动选中新创建的页面
       setSelectedPage(newPage);
     } catch (error) {
-      console.error('创建页面失败:', error);
+      console.error('❌ CanvasEditPage: 创建页面失败:', error);
+    } finally {
+      console.log('🔚 CanvasEditPage: 重置创建状态', { albumId, timestamp: Date.now() });
+      setCreatingPage(false);
     }
   };
 
