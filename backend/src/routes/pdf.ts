@@ -89,68 +89,24 @@ function generateHTMLTemplate(pageData: PageCanvasData, background: BackgroundSt
   // 生成元素HTML
   const generateElementHTML = (element: CanvasElement): string => {
     const { transform } = element;
-    const baseStyle = `
-      position: absolute;
-      left: ${transform.x}px;
-      top: ${transform.y}px;
-      width: ${transform.width}px;
-      height: ${transform.height}px;
-      transform: rotate(${transform.rotation}deg) scale(${transform.scaleX}, ${transform.scaleY});
-      transform-origin: center center;
-      z-index: ${element.zIndex};
-    `;
+    const baseStyle = `position:absolute;left:${transform.x}px;top:${transform.y}px;width:${transform.width}px;height:${transform.height}px;transform:rotate(${transform.rotation}deg) scale(${transform.scaleX}, ${transform.scaleY});transform-origin:center center;z-index:${element.zIndex};`;
 
     switch (element.type) {
       case 'text':
-        return `
-          <div style="
-            ${baseStyle}
-            font-size: ${element.fontSize || 16}px;
-            font-family: ${element.fontFamily || 'Arial'}, sans-serif;
-            font-weight: ${element.fontWeight || 'normal'};
-            font-style: ${element.fontStyle || 'normal'};
-            color: ${element.color || '#000000'};
-            text-align: ${element.textAlign || 'left'};
-            line-height: ${element.lineHeight || 1.2};
-            white-space: pre-wrap;
-            word-break: break-word;
-            opacity: ${element.opacity || 1};
-          ">
-            ${element.content || ''}
-          </div>
-        `;
+        const textStyle = `${baseStyle}font-size:${element.fontSize || 16}px;font-family:${element.fontFamily || 'Arial'},sans-serif;font-weight:${element.fontWeight || 'normal'};font-style:${element.fontStyle || 'normal'};color:${element.color || '#000000'};text-align:${element.textAlign || 'left'};line-height:${element.lineHeight || 1.2};white-space:pre-wrap;word-break:break-word;opacity:${element.opacity || 1};`;
+        return `<div style="${textStyle}">${element.content || ''}</div>`;
 
       case 'image':
         const borderStyle = element.border ?
-          `border: ${element.border.width}px solid ${element.border.color}; border-radius: ${element.border.radius}px;` : '';
-
-        return `
-          <div style="
-            ${baseStyle}
-            ${borderStyle}
-            overflow: hidden;
-            opacity: ${element.opacity || 1};
-          ">
-            <img src="${element.src}" style="
-              width: 100%;
-              height: 100%;
-              object-fit: cover;
-              display: block;
-            " />
-          </div>
-        `;
+          `border:${element.border.width}px solid ${element.border.color};border-radius:${element.border.radius}px;` : '';
+        const imageContainerStyle = `${baseStyle}${borderStyle}overflow:hidden;opacity:${element.opacity || 1};`;
+        const imageStyle = 'width:100%;height:100%;object-fit:cover;display:block;';
+        return `<div style="${imageContainerStyle}"><img src="${element.src}" style="${imageStyle}" /></div>`;
 
       case 'shape':
-        const shapeStyle = element.shapeType === 'circle' ? 'border-radius: 50%;' : '';
-        return `
-          <div style="
-            ${baseStyle}
-            background-color: ${element.fill || 'transparent'};
-            border: ${element.strokeWidth || 1}px solid ${element.stroke || '#000000'};
-            ${shapeStyle}
-            opacity: ${element.opacity || 1};
-          "></div>
-        `;
+        const shapeStyle = element.shapeType === 'circle' ? 'border-radius:50%;' : '';
+        const shapeElementStyle = `${baseStyle}background-color:${element.fill || 'transparent'};border:${element.strokeWidth || 1}px solid ${element.stroke || '#000000'};${shapeStyle}opacity:${element.opacity || 1};`;
+        return `<div style="${shapeElementStyle}"></div>`;
 
       default:
         return '';
