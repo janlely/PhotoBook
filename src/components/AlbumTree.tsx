@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '@headlessui/react';
 import type { Album } from '../api/albums';
 import type { Page } from '../api/pages';
-import { ChevronRightIcon, ChevronDownIcon, FolderIcon, PlusIcon, DocumentIcon, MinusIcon } from '@heroicons/react/24/outline';
+import { ChevronRightIcon, ChevronDownIcon, FolderIcon, PlusIcon, DocumentIcon, MinusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { AlbumExportButton } from './AlbumExportButton';
 import useStore from '../store/useStore';
 
@@ -13,6 +13,7 @@ interface AlbumTreeProps {
   selectedPageId?: number;
   onCreatePage?: (albumId: number) => void;
   onDeletePage?: (pageId: number, albumId: number) => void;
+  onDeleteAlbum?: (albumId: number, albumTitle: string) => void;
 }
 
 interface AlbumTreeItemProps {
@@ -24,6 +25,7 @@ interface AlbumTreeItemProps {
   selectedPageId?: number;
   onCreatePage?: (albumId: number) => void;
   onDeletePage?: (pageId: number, albumId: number) => void;
+  onDeleteAlbum?: (albumId: number, albumTitle: string) => void;
 }
 
 const AlbumTreeItem: React.FC<AlbumTreeItemProps> = ({
@@ -35,6 +37,7 @@ const AlbumTreeItem: React.FC<AlbumTreeItemProps> = ({
   selectedPageId,
   onCreatePage,
   onDeletePage,
+  onDeleteAlbum,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -82,12 +85,22 @@ const AlbumTreeItem: React.FC<AlbumTreeItemProps> = ({
         <span className="text-xs text-gray-500 mr-2">
           {album.pages?.length || 0} 页面
         </span>
-        <AlbumExportButton 
-          albumId={album.id} 
+        <AlbumExportButton
+          albumId={album.id}
           albumTitle={album.title}
           className="ml-1"
           iconOnly={true}
         />
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDeleteAlbum?.(album.id, album.title);
+          }}
+          className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors ml-1"
+          title="删除相册"
+        >
+          <TrashIcon className="h-3 w-3" />
+        </button>
       </div>
       
       {isExpanded && (
@@ -95,7 +108,9 @@ const AlbumTreeItem: React.FC<AlbumTreeItemProps> = ({
           {/* 显示页面列表 */}
           {album.pages && album.pages.length > 0 && (
             <div>
-              {album.pages.map((page) => (
+              {album.pages
+                .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+                .map((page, index) => (
                 <div
                   key={page.id}
                   className={`flex items-center px-2 py-1 ml-6 rounded hover:bg-gray-50 ${
@@ -103,11 +118,11 @@ const AlbumTreeItem: React.FC<AlbumTreeItemProps> = ({
                   }`}
                 >
                   <DocumentIcon className="h-4 w-4 text-gray-400 mr-2" />
-                  <span 
+                  <span
                     className="text-sm flex-1 cursor-pointer"
                     onClick={() => onPageSelect?.(page)}
                   >
-                    {page.title}
+                    {index + 1}
                   </span>
                   <span className="text-xs text-gray-400 mr-2">
                     {new Date(page.createdAt).toLocaleDateString()}
@@ -147,15 +162,20 @@ const AlbumTree: React.FC<AlbumTreeProps> = ({
   onPageSelect,
   selectedPageId,
   onCreatePage,
-  onDeletePage
+  onDeletePage,
+  onDeleteAlbum
 }) => {
   // 使用Zustand store作为唯一数据源
   const {
     albums: storeAlbums,
+    pages: storePages,
     loading,
     errors,
     fetchAlbums,
-    createAlbum
+    createAlbum,
+    createPage,
+    deletePage,
+    deleteAlbum
   } = useStore();
 
   // Extract albums loading state
@@ -167,6 +187,9 @@ const AlbumTree: React.FC<AlbumTreeProps> = ({
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [pageToDelete, setPageToDelete] = useState<{ id: number; title: string; albumId: number } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [showDeleteAlbumModal, setShowDeleteAlbumModal] = useState(false);
+  const [albumToDelete, setAlbumToDelete] = useState<{ id: number; title: string } | null>(null);
+  const [deletingAlbum, setDeletingAlbum] = useState(false);
 
   // 统一使用store数据
   const albums = storeAlbums.data;
@@ -222,13 +245,35 @@ const AlbumTree: React.FC<AlbumTreeProps> = ({
     }
   };
 
+  /**
+   * 处理页面创建的最佳实践：
+   * 1. 使用store方法而不是直接调用API，确保状态一致性
+   * 2. 页面名称现在基于渲染时的顺序自动计算，无需存储
+   * 3. store会自动更新所有相关缓存，无需手动刷新
+   * 4. 错误处理应该在UI层面提供用户反馈
+   */
+  const handleCreatePage = async (albumId: number) => {
+    try {
+      // 页面名称现在在渲染时根据顺序自动计算，这里只需提供一个默认标题
+      await createPage({
+        title: '新页面', // 存储时使用默认标题，渲染时会显示为数字
+        albumId,
+        content: '{}'
+      });
+      // 页面创建成功后，store会自动更新状态，AlbumTree会重新渲染
+    } catch (error) {
+      console.error('创建页面失败:', error);
+      // 可以在这里添加错误处理，比如显示错误提示
+    }
+  };
+
   const confirmDeletePage = async () => {
     if (!pageToDelete) return;
 
     try {
       setDeleting(true);
-      // 这里应该使用store的deletePage方法，但暂时保留原有逻辑
-      await import('../api/pages').then(module => module.pagesAPI.delete(pageToDelete.id));
+      // 使用store的deletePage方法，它会自动更新所有相关缓存
+      await deletePage(pageToDelete.id);
 
       // 通知父组件页面已删除
       onDeletePage?.(pageToDelete.id, pageToDelete.albumId);
@@ -245,6 +290,31 @@ const AlbumTree: React.FC<AlbumTreeProps> = ({
   const closeDeleteModal = () => {
     setShowDeleteModal(false);
     setPageToDelete(null);
+  };
+
+  const handleDeleteAlbum = (albumId: number, albumTitle: string) => {
+    setAlbumToDelete({ id: albumId, title: albumTitle });
+    setShowDeleteAlbumModal(true);
+  };
+
+  const confirmDeleteAlbum = async () => {
+    if (!albumToDelete) return;
+
+    try {
+      setDeletingAlbum(true);
+      await deleteAlbum(albumToDelete.id);
+      setShowDeleteAlbumModal(false);
+      setAlbumToDelete(null);
+    } catch (err: any) {
+      console.error('删除相册失败:', err);
+    } finally {
+      setDeletingAlbum(false);
+    }
+  };
+
+  const closeDeleteAlbumModal = () => {
+    setShowDeleteAlbumModal(false);
+    setAlbumToDelete(null);
   };
 
   useEffect(() => {
@@ -330,8 +400,9 @@ const AlbumTree: React.FC<AlbumTreeProps> = ({
                 selectedAlbumId={selectedAlbumId}
                 onPageSelect={onPageSelect}
                 selectedPageId={selectedPageId}
-                onCreatePage={onCreatePage}
+                onCreatePage={handleCreatePage}
                 onDeletePage={handleDeletePage}
+                onDeleteAlbum={handleDeleteAlbum}
               />
             ))
           )}
@@ -390,13 +461,13 @@ const AlbumTree: React.FC<AlbumTreeProps> = ({
             <DialogTitle className="text-lg font-semibold text-red-600">
               确认删除页面
             </DialogTitle>
-            
+
             <div className="text-sm text-gray-600">
               您确定要删除页面 <span className="font-medium text-gray-900">"{pageToDelete?.title}"</span> 吗？
               <br />
               <span className="text-red-500">此操作无法撤销。</span>
             </div>
-            
+
             <div className="flex justify-end space-x-3">
               <button
                 onClick={closeDeleteModal}
@@ -411,6 +482,41 @@ const AlbumTree: React.FC<AlbumTreeProps> = ({
                 className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {deleting ? '删除中...' : '确认删除'}
+              </button>
+            </div>
+          </DialogPanel>
+        </div>
+      </Dialog>
+
+      {/* Delete Album Confirmation Modal */}
+      <Dialog open={showDeleteAlbumModal} onClose={closeDeleteAlbumModal} className="relative z-50">
+        <DialogBackdrop className="fixed inset-0 bg-black/30" />
+        <div className="fixed inset-0 flex w-screen items-center justify-center p-4">
+          <DialogPanel className="max-w-md space-y-4 border bg-white p-6 rounded-lg shadow-xl">
+            <DialogTitle className="text-lg font-semibold text-red-600">
+              确认删除相册
+            </DialogTitle>
+
+            <div className="text-sm text-gray-600">
+              您确定要删除相册 <span className="font-medium text-gray-900">"{albumToDelete?.title}"</span> 吗？
+              <br />
+              <span className="text-red-500">此操作将同时删除相册中的所有页面，无法撤销。</span>
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={closeDeleteAlbumModal}
+                disabled={deletingAlbum}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+              >
+                取消
+              </button>
+              <button
+                onClick={confirmDeleteAlbum}
+                disabled={deletingAlbum}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {deletingAlbum ? '删除中...' : '确认删除'}
               </button>
             </div>
           </DialogPanel>

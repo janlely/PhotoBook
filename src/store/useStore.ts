@@ -419,21 +419,53 @@ const useStore = create<GlobalState>()(
         });
       },
 
+      /**
+       * 创建页面的最佳实践：
+       * 1. 同时更新所有相关缓存（pages 和 albums），确保数据一致性
+       * 2. 使用原子操作更新多个状态片段
+       * 3. 记录变更用于离线同步
+       * 4. 遵循单一数据源原则，避免组件直接调用API
+       */
       createPage: async (pageData) => {
         const { pagesAPI } = await import('../api/pages');
         const newPage = await pagesAPI.create(pageData.title, pageData.albumId, pageData.content);
 
-        // 更新本地缓存
-        set(state => ({
-          pages: {
+        // 更新本地缓存 - 同时更新pages和albums缓存，确保数据一致性
+        set(state => {
+          const updatedPages = {
             ...state.pages,
             [pageData.albumId]: {
               ...state.pages[pageData.albumId],
               data: [...(state.pages[pageData.albumId]?.data || []), newPage],
               version: (state.pages[pageData.albumId]?.version || 0) + 1
             }
-          }
-        }));
+          };
+
+          // 同时更新albums缓存中的pages，确保数据一致性
+          const updatedAlbums = {
+            ...state.albums,
+            data: state.albums.data.map(album =>
+              album.id === pageData.albumId
+                ? { ...album, pages: [...(album.pages || []), newPage] }
+                : album
+            ),
+            version: state.albums.version + 1
+          };
+
+          return {
+            pages: updatedPages,
+            albums: updatedAlbums
+          };
+        });
+
+        // 记录变更用于同步
+        const { syncService } = await import('../services/syncService');
+        syncService.addChange({
+          type: ChangeType.CREATE,
+          entityType: 'page',
+          entityId: newPage.id,
+          data: pageData
+        });
 
         return newPage;
       },
@@ -464,19 +496,50 @@ const useStore = create<GlobalState>()(
         const { pagesAPI } = await import('../api/pages');
         await pagesAPI.delete(id);
 
-        // 更新本地缓存
+        // 更新本地缓存 - 同时更新pages和albums缓存
         set(state => {
           const updatedPages = { ...state.pages };
+          let albumIdToUpdate: number | null = null;
+
           Object.keys(updatedPages).forEach(albumId => {
             if (updatedPages[parseInt(albumId)]?.data) {
+              const originalLength = updatedPages[parseInt(albumId)].data.length;
               updatedPages[parseInt(albumId)] = {
                 ...updatedPages[parseInt(albumId)],
                 data: updatedPages[parseInt(albumId)].data.filter(page => page.id !== id),
                 version: updatedPages[parseInt(albumId)].version + 1
               };
+              // 如果这个相册的页面数量减少了，说明页面被删除了
+              if (updatedPages[parseInt(albumId)].data.length < originalLength) {
+                albumIdToUpdate = parseInt(albumId);
+              }
             }
           });
-          return { pages: updatedPages };
+
+          // 同时更新albums缓存中的pages，确保数据一致性
+          const updatedAlbums = albumIdToUpdate ? {
+            ...state.albums,
+            data: state.albums.data.map(album =>
+              album.id === albumIdToUpdate
+                ? { ...album, pages: (album.pages || []).filter(page => page.id !== id) }
+                : album
+            ),
+            version: state.albums.version + 1
+          } : state.albums;
+
+          return {
+            pages: updatedPages,
+            albums: updatedAlbums
+          };
+        });
+
+        // 记录变更用于同步
+        const { syncService } = await import('../services/syncService');
+        syncService.addChange({
+          type: ChangeType.DELETE,
+          entityType: 'page',
+          entityId: id,
+          data: {}
         });
       },
 
