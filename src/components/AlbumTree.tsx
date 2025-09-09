@@ -7,38 +7,36 @@ import { AlbumExportButton } from './AlbumExportButton';
 import useStore from '../store/useStore';
 
 interface AlbumTreeProps {
-  onAlbumSelect: (album: Album) => void;
-  selectedAlbumId?: number;
-  onPageSelect?: (page: Page) => void;
-  selectedPageId?: number;
-  onCreatePage?: (albumId: number) => void;
-  onDeletePage?: (pageId: number, albumId: number) => void;
-  onDeleteAlbum?: (albumId: number, albumTitle: string) => void;
-}
+   onAlbumSelect: (album: Album) => void;
+   selectedAlbumId?: number;
+   onPageSelect?: (page: Page) => void;
+   selectedPageId?: number;
+   onDeletePage?: (pageId: number, albumId: number) => void;
+ }
 
 interface AlbumTreeItemProps {
-  album: Album;
-  level: number;
-  onAlbumSelect: (album: Album) => void;
-  selectedAlbumId?: number;
-  onPageSelect?: (page: Page) => void;
-  selectedPageId?: number;
-  onCreatePage?: (albumId: number) => void;
-  onDeletePage?: (pageId: number, albumId: number) => void;
-  onDeleteAlbum?: (albumId: number, albumTitle: string) => void;
-}
+   album: Album;
+   level: number;
+   onAlbumSelect: (album: Album) => void;
+   selectedAlbumId?: number;
+   onPageSelect?: (page: Page) => void;
+   selectedPageId?: number;
+   onCreatePage: (albumId: number) => void;
+   onDeletePage?: (pageId: number, albumId: number) => void;
+   onDeleteAlbum: (albumId: number, albumTitle: string) => void;
+ }
 
 const AlbumTreeItem: React.FC<AlbumTreeItemProps> = ({
-  album,
-  level,
-  onAlbumSelect,
-  selectedAlbumId,
-  onPageSelect,
-  selectedPageId,
-  onCreatePage,
-  onDeletePage,
-  onDeleteAlbum,
-}) => {
+   album,
+   level,
+   onAlbumSelect,
+   selectedAlbumId,
+   onPageSelect,
+   selectedPageId,
+   onCreatePage,
+   onDeletePage,
+   onDeleteAlbum,
+ }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
   const handleToggle = () => {
@@ -94,7 +92,7 @@ const AlbumTreeItem: React.FC<AlbumTreeItemProps> = ({
         <button
           onClick={(e) => {
             e.stopPropagation();
-            onDeleteAlbum?.(album.id, album.title);
+            onDeleteAlbum(album.id, album.title);
           }}
           className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors ml-1"
           title="删除相册"
@@ -160,14 +158,12 @@ const AlbumTreeItem: React.FC<AlbumTreeItemProps> = ({
 };
 
 const AlbumTree: React.FC<AlbumTreeProps> = ({
-  onAlbumSelect,
-  selectedAlbumId,
-  onPageSelect,
-  selectedPageId,
-  onCreatePage,
-  onDeletePage,
-  onDeleteAlbum
-}) => {
+   onAlbumSelect,
+   selectedAlbumId,
+   onPageSelect,
+   selectedPageId,
+   onDeletePage
+ }) => {
   // 使用Zustand store作为唯一数据源
   const {
     albums: storeAlbums,
@@ -245,15 +241,6 @@ const AlbumTree: React.FC<AlbumTreeProps> = ({
     setNewAlbumTitle('');
   };
 
-  const handleDeletePage = (pageId: number, albumId: number) => {
-    // 找到要删除的页面信息
-    const album = albums.find((a: Album) => a.id === albumId);
-    const page = album?.pages?.find((p: Page) => p.id === pageId);
-    if (page) {
-      setPageToDelete({ id: pageId, title: page.title, albumId });
-      setShowDeleteModal(true);
-    }
-  };
 
   /**
     * 处理页面创建的最佳实践：
@@ -435,7 +422,7 @@ const AlbumTree: React.FC<AlbumTreeProps> = ({
                 onPageSelect={onPageSelect}
                 selectedPageId={selectedPageId}
                 onCreatePage={handleCreatePage}
-                onDeletePage={handleDeletePage}
+                onDeletePage={onDeletePage}
                 onDeleteAlbum={handleDeleteAlbum}
               />
             ))

@@ -436,7 +436,6 @@ const HomePageContent: React.FC = () => {
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
   const [selectedPage, setSelectedPage] = useState<Page | null>(null);
   const [activeTab, setActiveTab] = useState<'design' | 'properties' | 'settings'>('settings');
-  const [creatingPage, setCreatingPage] = useState(false);
 
   // 从store获取数据
   const { albums: storeAlbums, fetchAlbums, fetchCanvasData, canvasData, canvasLoading } = useStore();
@@ -596,47 +595,6 @@ const HomePageContent: React.FC = () => {
     await loadCanvasWithDataCheck();
   };
 
-  const handleCreatePage = async (albumId: number) => {
-    console.log('🎯 CanvasEditPage: handleCreatePage 被调用', { albumId, creatingPage, timestamp: Date.now() });
-
-    // 防止重复调用
-    if (creatingPage) {
-      console.log('🚫 CanvasEditPage: 页面创建中，跳过重复调用', { albumId, timestamp: Date.now() });
-      return;
-    }
-
-    try {
-      console.log('🔄 CanvasEditPage: 开始创建页面', { albumId, timestamp: Date.now() });
-      setCreatingPage(true);
-
-      // 找到当前相册
-      const currentAlbum = albums.find((album: Album) => album.id === albumId);
-      if (!currentAlbum) {
-        console.log('⚠️ CanvasEditPage: 未找到相册', { albumId });
-        return;
-      }
-
-      // 计算下一个页面数字编号
-      const pageCount = currentAlbum.pages?.length || 0;
-      const nextPageNumber = pageCount + 1;
-      const pageName = nextPageNumber.toString();
-
-      console.log('📝 CanvasEditPage: 计算页面名称', { albumId, pageCount, nextPageNumber, pageName });
-
-      // 创建新页面
-      const newPage = await pagesAPI.create(pageName, albumId, '');
-
-      console.log('✅ CanvasEditPage: 页面创建成功', { albumId, pageId: newPage.id, pageName });
-
-      // 自动选中新创建的页面
-      setSelectedPage(newPage);
-    } catch (error) {
-      console.error('❌ CanvasEditPage: 创建页面失败:', error);
-    } finally {
-      console.log('🔚 CanvasEditPage: 重置创建状态', { albumId, timestamp: Date.now() });
-      setCreatingPage(false);
-    }
-  };
 
   const handleDeletePage = async (pageId: number, albumId: number) => {
     try {
@@ -703,7 +661,6 @@ const HomePageContent: React.FC = () => {
               selectedAlbumId={selectedAlbum?.id}
               onPageSelect={handlePageSelect}
               selectedPageId={selectedPage?.id}
-              onCreatePage={handleCreatePage}
               onDeletePage={handleDeletePage}
             />
           </div>

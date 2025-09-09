@@ -108,7 +108,7 @@ const TextProperties: React.FC<TextPropertiesProps> = ({ element }) => {
                   <Listbox.Option
                     key={font.name}
                     value={font.name}
-                    className={({ active, selected }) =>
+                    className={({ active }) =>
                       `relative cursor-pointer select-none py-1 px-2 ${
                         active ? 'bg-blue-100 text-blue-900' : 'text-gray-900'
                       }`
