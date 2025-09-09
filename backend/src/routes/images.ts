@@ -52,7 +52,7 @@ router.get('/:shortCode', async (req, res) => {
         accessCount: { increment: 1 },
         updatedAt: new Date()
       }
-    }).catch(err => {
+    }).catch((err: any) => {
       console.error('更新访问计数失败:', err);
     });
     

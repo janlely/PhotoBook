@@ -267,7 +267,7 @@ router.get('/images', authenticateToken, async (req: AuthRequest, res) => {
       }
     });
     
-    const imagesWithUrls = images.map(image => ({
+    const imagesWithUrls = images.map((image: { filename: any; }) => ({
       ...image,
       filePath: `/api/upload/image/${image.filename}`
     }));
