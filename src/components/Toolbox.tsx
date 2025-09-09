@@ -26,7 +26,7 @@ const DraggableTool: React.FC<DraggableToolProps> = ({
   label, 
   description 
 }) => {
-  const [{ isDragging }, drag, preview] = useDrag({
+  const [{ isDragging }, drag] = useDrag({
     type,
     item: {
       type,

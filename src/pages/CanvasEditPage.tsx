@@ -225,10 +225,8 @@ const DraggableToolElement: React.FC<{
     const container = canvasContainerRef.current;
     if (!container) return;
     
-    const resizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        calculateOptimalZoom();
-      }
+    const resizeObserver = new ResizeObserver(() => {
+      calculateOptimalZoom();
     });
     
     resizeObserver.observe(container);
@@ -381,15 +379,8 @@ const DraggableToolElement: React.FC<{
             // 使用transform来创建独立的滚动环境
             transform: 'translate3d(0, 0, 0)',
           }}
-          onScroll={(e) => {
-            // console.log('🔄 画布容器滚动事件:', {
-            //   scrollLeft: e.currentTarget.scrollLeft,
-            //   scrollTop: e.currentTarget.scrollTop,
-            //   scrollWidth: e.currentTarget.scrollWidth,
-            //   scrollHeight: e.currentTarget.scrollHeight,
-            //   clientWidth: e.currentTarget.clientWidth,
-            //   clientHeight: e.currentTarget.clientHeight
-            // });
+          onScroll={() => {
+            // Scroll handler placeholder
           }}
         >
           {/* 滚动内容区域 - 动态计算尺寸以容纳缩放后的画布 */}
@@ -481,7 +472,7 @@ const HomePageContent: React.FC = () => {
   };
 
   // 预加载相邻页面的数据
-  const preloadAdjacentPages = React.useCallback(async (currentPageId: number, albumId: number) => {
+  const preloadAdjacentPages = React.useCallback(async (currentPageId: number) => {
     if (!selectedAlbum?.pages) return;
 
     const currentIndex = selectedAlbum.pages.findIndex(p => p.id === currentPageId);
@@ -567,7 +558,7 @@ const HomePageContent: React.FC = () => {
 
               // 预加载相邻页面数据
               if (selectedAlbum) {
-                preloadAdjacentPages(page.id, selectedAlbum.id);
+                preloadAdjacentPages(page.id);
               }
               resolve();
             } else if (!isLoading) {

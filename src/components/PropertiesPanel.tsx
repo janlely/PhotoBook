@@ -1,7 +1,6 @@
 import React from 'react';
-import { Tab } from '@headlessui/react';
 import { useCanvas } from '../contexts/CanvasContext';
-import type { CanvasElement, TextElement, ImageElement } from '../contexts/CanvasContext';
+import type { TextElement, ImageElement } from '../contexts/CanvasContext';
 import ImageProperties from './properties/ImageProperties';
 import TextProperties from './properties/TextProperties';
 import MultiProperties from './properties/MultiProperties';

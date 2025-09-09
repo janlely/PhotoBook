@@ -4,7 +4,7 @@ import useStore from '../store/useStore';
 
 // 图片接口定义（如果需要可以保留用于类型定义）
 
-const ImageUpload: React.FC = () => {
+const ImageUpload: React.FC<{}> = () => {
   // 使用Zustand store
   const {
     images: storeImages,

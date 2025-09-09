@@ -3,7 +3,7 @@ import type { Album } from '../api/albums';
 import type { Page } from '../api/pages';
 import type { CanvasElement, Size } from '../contexts/CanvasContext';
 import type { BackgroundStyle } from '../types/backgroundStyle';
-import { errorHandler, withErrorHandler } from '../utils/errorHandler';
+import { withErrorHandler } from '../utils/errorHandler';
 import { performanceMonitor } from '../utils/performanceMonitor';
 
 // 数据同步状态枚举
@@ -705,7 +705,6 @@ const useStore = create<GlobalState>()(
 
       fetchPageBackground: async (pageId: number, force = false) => {
         const state = get();
-        const cacheKey = `page_bg_${pageId}`;
 
         // 检查缓存是否有效
         if (!force && state.pageBackgrounds[pageId] && !state.isDataStale(state.pageBackgrounds[pageId])) {

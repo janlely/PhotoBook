@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import type { PageCanvasData } from '../api/pages';
 import type { BackgroundStyle } from '../types/backgroundStyle';
@@ -655,7 +655,7 @@ export const CanvasProvider: React.FC<CanvasProviderProps> = ({ children }) => {
     }));
   }, []);
 
-  const exportCanvasAsImage = useCallback(async (format: 'png' | 'jpeg', quality = 0.9): Promise<Blob> => {
+  const exportCanvasAsImage = useCallback(async (format: 'png' | 'jpeg'): Promise<Blob> => {
     // 这里将来实现导出为图片的逻辑
     // 目前返回一个空的 Blob 作为占位符
     return new Blob([], { type: `image/${format}` });

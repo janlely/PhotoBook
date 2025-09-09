@@ -15,7 +15,6 @@ const CanvasRenderer: React.FC<CanvasRendererProps> = ({
   const {
     state,
     selectElement,
-    getElementById,
   } = useCanvas();
 
   // Handle element selection

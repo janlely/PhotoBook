@@ -37,8 +37,6 @@ const DraggableElement: React.FC<DraggableElementProps> = ({
   // 调整大小状态
   const [isResizing, setIsResizing] = useState(false);
   const [resizeDirection, setResizeDirection] = useState<ResizeDirection | null>(null);
-  const [resizeStartPos, setResizeStartPos] = useState({ x: 0, y: 0 });
-  const [originalTransform, setOriginalTransform] = useState(element.transform);
   
   // 文本编辑状态
   const [isEditing, setIsEditing] = useState(false);
@@ -175,8 +173,7 @@ const DraggableElement: React.FC<DraggableElementProps> = ({
     
     setIsResizing(true);
     setResizeDirection(direction);
-    setResizeStartPos({ x: e.clientX, y: e.clientY });
-    setOriginalTransform({ ...element.transform });
+    // Start position and original transform are now local variables
     
     const startPos = { x: e.clientX, y: e.clientY };
     const startTransform = { ...element.transform };

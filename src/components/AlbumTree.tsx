@@ -171,7 +171,6 @@ const AlbumTree: React.FC<AlbumTreeProps> = ({
   // 使用Zustand store作为唯一数据源
   const {
     albums: storeAlbums,
-    pages: storePages,
     loading,
     errors,
     fetchAlbums,

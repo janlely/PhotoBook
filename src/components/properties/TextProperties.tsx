@@ -114,21 +114,19 @@ const TextProperties: React.FC<TextPropertiesProps> = ({ element }) => {
                       }`
                     }
                   >
-                    {({ selected }) => (
+                    {() => (
                       <>
-                        <span 
-                          className={`block truncate ${
-                            selected ? 'font-medium' : 'font-normal'
-                          }`}
+                        <span
+                          className={`block truncate font-normal`}
                           style={{ fontFamily: font.name }}
                         >
                           {font.displayName}
                         </span>
-                        {selected ? (
+                        {element.fontFamily === font.name && (
                           <span className="absolute inset-y-0 right-0 flex items-center pr-2 text-blue-600">
                             <CheckIcon className="h-3 w-3" aria-hidden="true" />
                           </span>
-                        ) : null}
+                        )}
                       </>
                     )}
                   </Listbox.Option>
