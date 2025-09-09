@@ -1,7 +1,7 @@
 import express from 'express';
 import puppeteer from 'puppeteer';
 import { PDFDocument } from 'pdf-lib';
-import { PrismaClient } from '../generated/prisma';
+import { PrismaClient } from '@prisma/client';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import path from 'path';
 

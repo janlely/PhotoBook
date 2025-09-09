@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import path from 'path';
-import { PrismaClient } from './generated/prisma';
+import { PrismaClient } from '@prisma/client';
 import authRoutes from './routes/auth';
 import albumRoutes from './routes/albums';
 import pageRoutes from './routes/pages';
