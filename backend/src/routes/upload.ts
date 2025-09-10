@@ -116,7 +116,7 @@ router.post('/image', authenticateToken, upload.single('image'), async (req: Aut
       });
       
       // 获取配置的图片基础URL
-      const imageBaseUrl = process.env.IMAGE_BASE_URL || `${req.protocol}://${req.get('host')}`;
+      const imageBaseUrl = process.env.IMAGE_BASE_URL;
       const imageUrl = `${imageBaseUrl}/img/${shortCode}`;
       
       return res.status(201).json({
