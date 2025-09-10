@@ -284,7 +284,7 @@ router.get('/album/:albumId', authenticateToken, async (req: AuthRequest, res) =
 
         // 等待一小段时间让页面稳定
         console.log(`等待页面 ${pageData.id} 稳定`);
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 5000));
 
         // 生成PDF
         const pdfBuffer = await page.pdf({
