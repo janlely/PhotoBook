@@ -24,6 +24,20 @@ model User {
   albums    Album[]
   images    Image[]
   imageLinks ImageLink[]
+  usedInvitationCode InvitationCode? // 用户使用的邀请码
+}
+
+model InvitationCode {
+  id        Int      @id @default(autoincrement())
+  code      String   @unique  // 邀请码，唯一
+  isUsed    Boolean  @default(false)  // 是否已被使用
+  usedById  Int?     @unique  // 使用该邀请码的用户ID，一对一关系需要唯一
+  usedBy    User?    @relation(fields: [usedById], references: [id])
+  createdAt DateTime @default(now())
+  usedAt    DateTime? // 使用时间
+  expiresAt DateTime? // 可选的过期时间
+
+  @@index([code])
 }
 
 model Album {

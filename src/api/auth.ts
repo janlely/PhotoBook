@@ -33,8 +33,8 @@ api.interceptors.response.use(
 // 认证相关API
 export const authAPI = {
   // 用户注册
-  register: async (email: string, password: string, name?: string, username?: string) => {
-    const response = await api.post('/auth/register', { email, password, name, username });
+  register: async (email: string, password: string, name?: string, username?: string, invitationCode?: string) => {
+    const response = await api.post('/auth/register', { email, password, name, username, invitationCode });
     return response.data;
   },
 

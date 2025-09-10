@@ -7,6 +7,7 @@ const RegisterPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [invitationCode, setInvitationCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -17,7 +18,7 @@ const RegisterPage: React.FC = () => {
     setLoading(true);
 
     try {
-      const response = await authAPI.register(email, password, name, username);
+      const response = await authAPI.register(email, password, name, username, invitationCode);
       localStorage.setItem('token', response.token);
       navigate('/');
     } catch (err: any) {
@@ -109,6 +110,21 @@ const RegisterPage: React.FC = () => {
                 placeholder="密码"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+            <div>
+              <label htmlFor="invitationCode" className="block text-sm font-medium text-gray-700">
+                邀请码
+              </label>
+              <input
+                id="invitationCode"
+                name="invitationCode"
+                type="text"
+                required
+                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                placeholder="请输入邀请码"
+                value={invitationCode}
+                onChange={(e) => setInvitationCode(e.target.value)}
               />
             </div>
           </div>

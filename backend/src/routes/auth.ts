@@ -9,7 +9,35 @@ const prisma = new PrismaClient();
 // 用户注册
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, name, username } = req.body;
+    const { email, password, name, username, invitationCode } = req.body;
+
+    // 校验邀请码是否提供
+    if (!invitationCode) {
+      res.status(400).json({ error: '必须提供邀请码' });
+      return;
+    }
+
+    // 查找邀请码
+    const code = await prisma.invitationCode.findUnique({
+      where: { code: invitationCode }
+    });
+
+    if (!code) {
+      res.status(400).json({ error: '邀请码不存在' });
+      return;
+    }
+
+    // 检查邀请码是否已被使用
+    if (code.isUsed) {
+      res.status(400).json({ error: '邀请码已被使用' });
+      return;
+    }
+
+    // 检查邀请码是否过期
+    if (code.expiresAt && new Date() > code.expiresAt) {
+      res.status(400).json({ error: '邀请码已过期' });
+      return;
+    }
 
     // 检查邮箱是否已存在
     const existingEmail = await prisma.user.findUnique({
@@ -34,34 +62,49 @@ router.post('/register', async (req, res) => {
     // 加密密码
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // 创建新用户
-    const user = await prisma.user.create({
-      data: {
-        email,
-        username,
-        password: hashedPassword,
-        name
-      },
-      select: {
-        id: true,
-        email: true,
-        username: true,
-        name: true,
-        createdAt: true,
-        updatedAt: true
-      }
+    // 使用事务确保数据一致性
+    const result = await prisma.$transaction(async (tx) => {
+      // 创建新用户
+      const user = await tx.user.create({
+        data: {
+          email,
+          username,
+          password: hashedPassword,
+          name
+        },
+        select: {
+          id: true,
+          email: true,
+          username: true,
+          name: true,
+          createdAt: true,
+          updatedAt: true
+        }
+      });
+
+      // 标记邀请码为已使用
+      await tx.invitationCode.update({
+        where: { code: invitationCode },
+        data: {
+          isUsed: true,
+          usedById: user.id,
+          usedAt: new Date()
+        }
+      });
+
+      return user;
     });
-    
+
     // 生成JWT token
     const token = jwt.sign(
-      { userId: user.id },
+      { userId: result.id },
       process.env.JWT_SECRET || 'your-secret-key',
       { expiresIn: '7d' }
     );
-    
+
     res.status(201).json({
       message: '用户注册成功',
-      user,
+      user: result,
       token
     });
   } catch (error) {
