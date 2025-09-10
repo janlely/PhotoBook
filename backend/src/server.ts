@@ -14,10 +14,10 @@ const app = express();
 const prisma = new PrismaClient();
 
 // 中间件
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-  credentials: true
-}));
+// app.use(cors({
+//   origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+//   credentials: true
+// }));
 app.use(express.json());
 app.use(cookieParser());
 
