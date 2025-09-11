@@ -4,6 +4,7 @@ import { PDFDocument } from 'pdf-lib';
 import { PrismaClient } from '@prisma/client';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
 import path from 'path';
+import fs from 'fs';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -160,15 +161,19 @@ function generateHTMLTemplate(pageData: PageCanvasData, background: BackgroundSt
   `;
 }
 
-// 导出相册为PDF
-router.get('/album/:albumId', authenticateToken, async (req: AuthRequest, res) => {
+// 创建PDF导出任务
+router.post('/tasks', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.user?.userId;
-    const albumId = parseInt(req.params.albumId);
+    const { albumId } = req.body;
+
+    if (!albumId) {
+      return res.status(400).json({ error: '相册ID不能为空' });
+    }
 
     // 验证相册权限
     const album = await prisma.album.findFirst({
-      where: { id: albumId, userId },
+      where: { id: parseInt(albumId), userId },
       include: {
         pages: {
           orderBy: { createdAt: 'asc' }
@@ -184,7 +189,147 @@ router.get('/album/:albumId', authenticateToken, async (req: AuthRequest, res) =
       return res.status(400).json({ error: '相册中没有页面' });
     }
 
-    // 启动Puppeteer - 使用更简单的配置
+    // 创建导出任务
+    const task = await prisma.pdfExportTask.create({
+      data: {
+        userId: userId!,
+        albumId: parseInt(albumId),
+        status: 'pending',
+        progress: 0
+      }
+    });
+
+    // 异步处理PDF生成
+    processPdfExport(task.id);
+
+    res.json({
+      taskId: task.id,
+      message: 'PDF导出任务已创建，开始处理中...'
+    });
+
+  } catch (error) {
+    console.error('创建PDF导出任务失败:', error);
+    res.status(500).json({ error: '创建导出任务失败' });
+  }
+});
+
+// 获取任务进度
+router.get('/tasks/:taskId/progress', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user?.userId;
+    const taskId = parseInt(req.params.taskId);
+
+    const task = await prisma.pdfExportTask.findFirst({
+      where: { id: taskId, userId }
+    });
+
+    if (!task) {
+      return res.status(404).json({ error: '任务不存在或无权限访问' });
+    }
+
+    res.json({
+      taskId: task.id,
+      status: task.status,
+      progress: task.progress,
+      createdAt: task.createdAt,
+      updatedAt: task.updatedAt,
+      errorMessage: task.errorMessage
+    });
+
+  } catch (error) {
+    console.error('获取任务进度失败:', error);
+    res.status(500).json({ error: '获取任务进度失败' });
+  }
+});
+
+// 下载完成的PDF
+router.get('/tasks/:taskId/download', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user?.userId;
+    const taskId = parseInt(req.params.taskId);
+
+    const task = await prisma.pdfExportTask.findFirst({
+      where: { id: taskId, userId },
+      include: { album: true }
+    });
+
+    if (!task) {
+      return res.status(404).json({ error: '任务不存在或无权限访问' });
+    }
+
+    if (task.status !== 'completed') {
+      return res.status(400).json({ error: '任务尚未完成' });
+    }
+
+    if (!task.filePath || !fs.existsSync(task.filePath)) {
+      return res.status(404).json({ error: 'PDF文件不存在' });
+    }
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${task.album.title}.pdf"`);
+
+    const fileStream = fs.createReadStream(task.filePath);
+    fileStream.pipe(res);
+
+  } catch (error) {
+    console.error('下载PDF失败:', error);
+    res.status(500).json({ error: '下载PDF失败' });
+  }
+});
+
+// 获取用户的所有任务
+router.get('/tasks', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user?.userId;
+
+    const tasks = await prisma.pdfExportTask.findMany({
+      where: { userId },
+      include: {
+        album: {
+          select: { id: true, title: true }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    res.json(tasks);
+
+  } catch (error) {
+    console.error('获取任务列表失败:', error);
+    res.status(500).json({ error: '获取任务列表失败' });
+  }
+});
+
+// 异步PDF生成函数
+async function processPdfExport(taskId: number) {
+  try {
+    // 更新任务状态为处理中
+    await prisma.pdfExportTask.update({
+      where: { id: taskId },
+      data: { status: 'processing', progress: 5 }
+    });
+
+    const task = await prisma.pdfExportTask.findUnique({
+      where: { id: taskId },
+      include: {
+        album: {
+          include: {
+            pages: {
+              orderBy: { createdAt: 'asc' }
+            }
+          }
+        }
+      }
+    });
+
+    if (!task) {
+      throw new Error('任务不存在');
+    }
+
+    const album = task.album;
+    const totalPages = album.pages.length;
+
+    // 启动Puppeteer
     const browser = await puppeteer.launch({
       headless: true,
       args: [
@@ -195,30 +340,24 @@ router.get('/album/:albumId', authenticateToken, async (req: AuthRequest, res) =
       ]
     });
 
-    // 获取画布尺寸（从第一页获取）
+    // 获取画布尺寸
     const firstPageData = JSON.parse(album.pages[0].content || '{}');
     const canvasSize = firstPageData.canvasSize || { width: 800, height: 600 };
-    console.log('画布尺寸:', canvasSize);
 
-    // 处理每一页
     const pdfBuffers: Buffer[] = [];
-    console.log(`开始处理相册 ${albumId}，共有 ${album.pages.length} 个页面`);
 
-    for (let i = 0; i < album.pages.length; i++) {
+    for (let i = 0; i < totalPages; i++) {
       const pageData = album.pages[i];
-      console.log(`处理第 ${i + 1} 页，页面ID: ${pageData.id}`);
+      const progress = Math.floor(5 + (i / totalPages) * 85);
 
-      // 在处理每个页面之间添加延迟，避免资源竞争
-      if (i > 0) {
-        console.log(`等待 2 秒后处理下一个页面...`);
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      }
+      await prisma.pdfExportTask.update({
+        where: { id: taskId },
+        data: { progress }
+      });
 
-      // 为每个页面创建新的Puppeteer页面对象
+      // 处理页面生成PDF的逻辑（复用原有代码）
       const page = await browser.newPage();
-
-      // 设置页面超时和视口
-      page.setDefaultTimeout(60000); // 60秒超时
+      page.setDefaultTimeout(60000);
       page.setDefaultNavigationTimeout(60000);
 
       await page.setViewport({
@@ -228,65 +367,29 @@ router.get('/album/:albumId', authenticateToken, async (req: AuthRequest, res) =
       });
 
       try {
-        // 解析画布数据
         const canvasData: PageCanvasData = JSON.parse(pageData.content || '{}');
-        console.log(`页面 ${pageData.id} 的画布数据:`, {
-          canvasSize: canvasData.canvasSize,
-          elementsCount: canvasData.elements?.length || 0
-        });
 
-        // 获取页面背景
         let background: BackgroundStyle = { type: 'solid', color: '#FFFFFF' };
 
         if (album.isUseGlobalBackground) {
-          // 使用页面背景
           if (pageData.background) {
             background = pageData.background as unknown as BackgroundStyle;
-            console.log(`页面 ${pageData.id} 使用页面背景:`, background);
           }
         } else {
-          // 使用相册背景
           if (album.background) {
             background = album.background as unknown as BackgroundStyle;
-            console.log(`页面 ${pageData.id} 使用相册背景:`, background);
           }
         }
 
-        // 生成HTML
-        let html = generateHTMLTemplate(canvasData, background);
+        const html = generateHTMLTemplate(canvasData, background);
 
-        // 如果有图片元素，尝试将图片转换为base64嵌入，避免网络请求问题
-        if (canvasData.elements.some(el => el.type === 'image')) {
-          console.log(`页面 ${pageData.id} 包含图片元素，尝试转换图片URL`);
-
-          // 这里可以添加图片预处理逻辑
-          // 暂时保持原有逻辑
-        }
-
-        // 保存HTML文件用于调试
-        const fs = require('fs');
-        const path = require('path');
-        const htmlDir = path.join(__dirname, '../../html_debug');
-        if (!fs.existsSync(htmlDir)) {
-          fs.mkdirSync(htmlDir, { recursive: true });
-        }
-        const htmlFileName = `${albumId}-${pageData.id}.html`;
-        const htmlFilePath = path.join(htmlDir, htmlFileName);
-        fs.writeFileSync(htmlFilePath, html);
-        console.log(`HTML文件已保存: ${htmlFilePath}`);
-
-        // 设置页面内容
-        console.log(`设置页面 ${pageData.id} 内容，HTML大小: ${html.length} 字符`);
         await page.setContent(html, {
-          waitUntil: 'domcontentloaded', // 改为只等待DOM加载，不等待网络请求
+          waitUntil: 'domcontentloaded',
           timeout: 30000
         });
 
-        // 等待一小段时间让页面稳定
-        console.log(`等待页面 ${pageData.id} 稳定`);
         await new Promise(resolve => setTimeout(resolve, 5000));
 
-        // 生成PDF
         const pdfBuffer = await page.pdf({
           width: `${canvasSize.width}px`,
           height: `${canvasSize.height}px`,
@@ -300,95 +403,84 @@ router.get('/album/:albumId', authenticateToken, async (req: AuthRequest, res) =
           }
         });
 
-        const buffer = Buffer.from(pdfBuffer);
-        pdfBuffers.push(buffer);
-        console.log(`页面 ${pageData.id} PDF生成完成，缓冲区大小: ${buffer.length} bytes`);
+        pdfBuffers.push(Buffer.from(pdfBuffer));
 
       } catch (error) {
         console.error(`处理页面 ${pageData.id} 时出错:`, error);
-        // 如果是连接问题，停止处理后续页面
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        if (errorMessage.includes('Connection') || errorMessage.includes('detached')) {
-          console.error('检测到连接问题，停止处理后续页面');
-          break;
-        }
-        // 继续处理其他页面
       } finally {
-        // 确保页面被关闭
         try {
           if (!page.isClosed()) {
             await page.close();
-            console.log(`页面 ${pageData.id} 已关闭`);
           }
         } catch (closeError) {
           console.error(`关闭页面 ${pageData.id} 时出错:`, closeError);
         }
-
-        // 在页面处理完成后添加额外延迟，避免资源竞争
-        console.log(`页面 ${pageData.id} 处理完成，等待 3 秒...`);
         await new Promise(resolve => setTimeout(resolve, 3000));
       }
     }
 
-    console.log(`PDF缓冲区数组长度: ${pdfBuffers.length}`);
-
-    // 关闭浏览器
-    try {
-      await browser.close();
-      console.log('浏览器已关闭');
-    } catch (closeError) {
-      console.error('关闭浏览器时出错:', closeError);
-    }
+    await browser.close();
 
     if (pdfBuffers.length === 0) {
-      return res.status(500).json({ error: 'PDF生成失败' });
+      throw new Error('PDF生成失败');
     }
 
-    // 处理PDF输出
+    // 合并PDF
     let finalPdfBuffer: Buffer;
-    console.log(`开始处理PDF输出，缓冲区数量: ${pdfBuffers.length}`);
-
     if (pdfBuffers.length === 1) {
-      // 单个页面直接返回
-      console.log('单个页面，直接返回');
       finalPdfBuffer = pdfBuffers[0];
     } else {
-      // 多个页面需要合并
-      console.log('多个页面，开始合并PDF');
       const mergedPdf = await PDFDocument.create();
-      console.log('创建了新的PDF文档');
-
-      let totalPages = 0;
-      for (let i = 0; i < pdfBuffers.length; i++) {
-        const pdfBuffer = pdfBuffers[i];
-        console.log(`处理第 ${i + 1} 个PDF缓冲区，大小: ${pdfBuffer.length} bytes`);
-
+      for (const pdfBuffer of pdfBuffers) {
         const pdf = await PDFDocument.load(pdfBuffer);
-        const pageCount = pdf.getPageCount();
-        console.log(`PDF ${i + 1} 有 ${pageCount} 页`);
-
         const copiedPages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
-        console.log(`复制了 ${copiedPages.length} 页`);
-
-        copiedPages.forEach((page) => {
-          mergedPdf.addPage(page);
-          totalPages++;
-        });
+        copiedPages.forEach((page) => mergedPdf.addPage(page));
       }
-
-      console.log(`合并完成，总共 ${totalPages} 页`);
       finalPdfBuffer = Buffer.from(await mergedPdf.save());
-      console.log(`最终PDF大小: ${finalPdfBuffer.length} bytes`);
     }
 
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${album.title}.pdf"`);
-    res.send(finalPdfBuffer);
+    // 保存文件
+    const pdfDir = path.join(__dirname, '../../pdf_exports');
+    if (!fs.existsSync(pdfDir)) {
+      fs.mkdirSync(pdfDir, { recursive: true });
+    }
+
+    const fileName = `export_${taskId}_${Date.now()}.pdf`;
+    const filePath = path.join(pdfDir, fileName);
+
+    fs.writeFileSync(filePath, finalPdfBuffer);
+
+    // 更新任务状态为完成
+    await prisma.pdfExportTask.update({
+      where: { id: taskId },
+      data: {
+        status: 'completed',
+        progress: 100,
+        filePath,
+        fileSize: finalPdfBuffer.length
+      }
+    });
 
   } catch (error) {
-    console.error('PDF导出错误:', error);
-    res.status(500).json({ error: 'PDF导出失败' });
+    console.error('PDF导出处理失败:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    await prisma.pdfExportTask.update({
+      where: { id: taskId },
+      data: {
+        status: 'failed',
+        errorMessage
+      }
+    });
   }
+}
+
+// 保留原有路由用于向后兼容（重定向到新API）
+router.get('/album/:albumId', authenticateToken, async (req: AuthRequest, res) => {
+  res.status(410).json({
+    error: '此API已废弃，请使用POST /api/pdf/tasks创建异步导出任务',
+    deprecated: true
+  });
 });
 
 export default router;

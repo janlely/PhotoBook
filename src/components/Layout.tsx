@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Link, Outlet } from 'react-router-dom';
 import { UserIcon } from '@heroicons/react/20/solid';
 import useStore from '../store/useStore';
+import DownloadTasksButton from './DownloadTasksButton';
+import DownloadTasksModal from './DownloadTasksModal';
 
 // 用户菜单组件
 const UserMenu: React.FC = () => {
@@ -64,6 +66,8 @@ const UserMenu: React.FC = () => {
 };
 
 const Layout: React.FC = () => {
+  const [isTasksModalOpen, setIsTasksModalOpen] = useState(false);
+
   return (
     <div className="h-screen overflow-hidden">
       <nav className="bg-white shadow-sm">
@@ -82,7 +86,11 @@ const Layout: React.FC = () => {
                 </Link>
               </div>
             </div>
-            <div className="flex items-center">
+            <div className="flex items-center space-x-2">
+              <DownloadTasksButton
+                onClick={() => setIsTasksModalOpen(true)}
+                hasActiveTasks={false}
+              />
               <UserMenu />
             </div>
           </div>
@@ -91,6 +99,11 @@ const Layout: React.FC = () => {
       <main>
         <Outlet />
       </main>
+
+      <DownloadTasksModal
+        isOpen={isTasksModalOpen}
+        onClose={() => setIsTasksModalOpen(false)}
+      />
     </div>
   );
 };

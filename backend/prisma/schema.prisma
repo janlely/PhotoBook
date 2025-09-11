@@ -24,6 +24,7 @@ model User {
   albums    Album[]
   images    Image[]
   imageLinks ImageLink[]
+  pdfExportTasks PdfExportTask[]
   usedInvitationCode InvitationCode? // 用户使用的邀请码
 }
 
@@ -53,6 +54,7 @@ model Album {
   parent    Album?   @relation("AlbumToAlbum", fields: [parentId], references: [id])
   background      Json?     // 新的统一背景配置
   isUseGlobalBackground Boolean @default(false) // 是否使用全局背景设置
+  pdfExportTasks PdfExportTask[]
 }
 
 model Page {
@@ -96,4 +98,23 @@ model ImageLink {
 
   @@index([shortCode])
   @@index([imageId])
+}
+
+model PdfExportTask {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  albumId     Int
+  album       Album    @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  status      String   @default("pending") // pending, processing, completed, failed
+  progress    Int      @default(0) // 0-100
+  filePath    String?  // 存储生成的PDF文件路径
+  fileSize    Int?     // PDF文件大小（字节）
+  errorMessage String? // 错误信息
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([albumId])
+  @@index([status])
 }

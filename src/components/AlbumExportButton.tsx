@@ -6,37 +6,40 @@ interface AlbumExportButtonProps {
   albumTitle: string;
   className?: string;
   iconOnly?: boolean;
+  onTaskCreated?: (taskId: number) => void;
 }
 
-export const AlbumExportButton: React.FC<AlbumExportButtonProps> = ({ albumId, albumTitle, className, iconOnly }) => {
-  const [isExporting, setIsExporting] = useState(false);
+export const AlbumExportButton: React.FC<AlbumExportButtonProps> = ({
+  albumId,
+  albumTitle: _albumTitle,
+  className,
+  iconOnly,
+  onTaskCreated
+}) => {
+  const [isCreating, setIsCreating] = useState(false);
 
   const handleExport = async () => {
     if (!albumId) return;
 
-    setIsExporting(true);
+    setIsCreating(true);
 
     try {
-      // 调用后端PDF导出API
-      const pdfBlob = await albumsAPI.exportToPDF(albumId);
+      // 创建PDF导出任务
+      const result = await albumsAPI.createPdfExportTask(albumId);
 
-      // 创建下载链接
-      const url = URL.createObjectURL(pdfBlob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${albumTitle || '相册'}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      // 通知父组件任务已创建
+      if (onTaskCreated) {
+        onTaskCreated(result.taskId);
+      }
 
-      // 清理
-      URL.revokeObjectURL(url);
+      // 显示成功消息
+      alert(`PDF导出任务已创建！任务ID: ${result.taskId}\n请查看下载任务列表获取进度和下载链接。`);
 
     } catch (error) {
-      console.error('导出失败:', error);
-      alert('导出失败，请重试');
+      console.error('创建导出任务失败:', error);
+      alert('创建导出任务失败，请重试');
     } finally {
-      setIsExporting(false);
+      setIsCreating(false);
     }
   };
 
@@ -45,11 +48,11 @@ export const AlbumExportButton: React.FC<AlbumExportButtonProps> = ({ albumId, a
       {iconOnly ? (
         <button
           onClick={handleExport}
-          disabled={isExporting || !albumId}
+          disabled={isCreating || !albumId}
           className={`p-1 rounded hover:bg-gray-200 transition-colors ${className || ''}`}
           title="导出相册为PDF"
         >
-          {isExporting ? (
+          {isCreating ? (
             <svg className="animate-spin h-4 w-4 text-gray-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -63,17 +66,17 @@ export const AlbumExportButton: React.FC<AlbumExportButtonProps> = ({ albumId, a
       ) : (
         <button
           onClick={handleExport}
-          disabled={isExporting || !albumId}
+          disabled={isCreating || !albumId}
           className={`flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${className || ''}`}
           title="将相册导出为PDF文件"
         >
-          {isExporting ? (
+          {isCreating ? (
             <>
               <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              导出中...
+              创建任务中...
             </>
           ) : (
             <>
@@ -84,23 +87,6 @@ export const AlbumExportButton: React.FC<AlbumExportButtonProps> = ({ albumId, a
             </>
           )}
         </button>
-      )}
-
-      {isExporting && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4">正在导出相册</h3>
-            <div className="flex items-center justify-center">
-              <svg className="animate-spin h-8 w-8 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-            </div>
-            <div className="text-sm text-gray-600 text-center mt-4">
-              正在生成PDF文件，请稍候...
-            </div>
-          </div>
-        </div>
       )}
     </>
   );

@@ -65,12 +65,52 @@ export const albumsAPI = {
     return response.data;
   },
 
-  // 导出相册为PDF
-  exportToPDF: async (id: number): Promise<Blob> => {
-    const response = await api.get(`/pdf/album/${id}`, {
+  // 创建PDF导出任务
+  createPdfExportTask: async (id: number): Promise<{ taskId: number; message: string }> => {
+    const response = await api.post('/pdf/tasks', { albumId: id });
+    return response.data;
+  },
+
+  // 获取PDF导出任务进度
+  getPdfExportProgress: async (taskId: number): Promise<{
+    taskId: number;
+    status: string;
+    progress: number;
+    createdAt: string;
+    updatedAt: string;
+    errorMessage?: string;
+  }> => {
+    const response = await api.get(`/pdf/tasks/${taskId}/progress`);
+    return response.data;
+  },
+
+  // 下载完成的PDF
+  downloadPdfExport: async (taskId: number): Promise<Blob> => {
+    const response = await api.get(`/pdf/tasks/${taskId}/download`, {
       responseType: 'blob'
     });
     return response.data;
+  },
+
+  // 获取用户的所有PDF导出任务
+  getPdfExportTasks: async (): Promise<Array<{
+    id: number;
+    status: string;
+    progress: number;
+    filePath?: string;
+    fileSize?: number;
+    errorMessage?: string;
+    createdAt: string;
+    updatedAt: string;
+    album: { id: number; title: string };
+  }>> => {
+    const response = await api.get('/pdf/tasks');
+    return response.data;
+  },
+
+  // 保留原有方法用于向后兼容（已废弃）
+  exportToPDF: async (_id: number): Promise<Blob> => {
+    throw new Error('此方法已废弃，请使用 createPdfExportTask 创建异步导出任务');
   },
 };
 
