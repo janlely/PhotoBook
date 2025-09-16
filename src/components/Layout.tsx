@@ -8,6 +8,7 @@ import TaskFlyInAnimation from './TaskFlyInAnimation';
 // 用户菜单组件
 const UserMenu: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { user, isAuthenticated, logout, checkAuth } = useStore();
 
   useEffect(() => {
@@ -23,10 +24,26 @@ const UserMenu: React.FC = () => {
     setIsOpen(false);
   };
 
+  // 显示菜单
+  const showMenu = () => {
+    if (hideTimeoutRef.current) {
+      clearTimeout(hideTimeoutRef.current);
+    }
+    setIsOpen(true);
+  };
+
+  // 隐藏菜单（带延迟）
+  const hideMenu = () => {
+    hideTimeoutRef.current = setTimeout(() => {
+      setIsOpen(false);
+    }, 150);
+  };
+
   return (
     <div className="relative">
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onMouseEnter={showMenu}
+        onMouseLeave={hideMenu}
         className="flex items-center space-x-2 p-2 rounded-md hover:bg-gray-100 transition-colors"
         title={isAuthenticated ? user?.name || user?.username || '用户' : '未登录'}
       >
@@ -36,7 +53,11 @@ const UserMenu: React.FC = () => {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 z-50">
+        <div
+          className="absolute right-0 top-full mt-2 w-48 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 z-50 transition-all duration-200 ease-out"
+          onMouseEnter={showMenu}
+          onMouseLeave={hideMenu}
+        >
           <div className="py-1">
             {isAuthenticated ? (
               <>
