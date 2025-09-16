@@ -15,6 +15,7 @@ import { DocumentTextIcon, PhotoIcon } from '@heroicons/react/24/outline';
 import { ItemTypes } from '../types/dnd';
 import type { ToolDragItem } from '../types/dnd';
 import type { CanvasElement } from '../contexts/CanvasContext';
+import { useOutletContext } from 'react-router-dom';
 
 // 自定义缩放控件组件
 const ZoomControl: React.FC<{
@@ -433,6 +434,7 @@ const DraggableToolElement: React.FC<{
 
 // 主页面内容组件 - 在CanvasProvider内部，可以访问canvas context
 const HomePageContent: React.FC = () => {
+  const { onAnimationTrigger } = useOutletContext<{ onAnimationTrigger?: (buttonPosition: { x: number; y: number }, albumTitle: string) => void }>();
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
   const [selectedPage, setSelectedPage] = useState<Page | null>(null);
   const [activeTab, setActiveTab] = useState<'design' | 'properties' | 'settings'>('settings');
@@ -662,6 +664,7 @@ const HomePageContent: React.FC = () => {
               onPageSelect={handlePageSelect}
               selectedPageId={selectedPage?.id}
               onDeletePage={handleDeletePage}
+              onAnimationTrigger={onAnimationTrigger}
             />
           </div>
         </div>

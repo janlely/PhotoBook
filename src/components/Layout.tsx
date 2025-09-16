@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, Outlet } from 'react-router-dom';
 import { UserIcon } from '@heroicons/react/20/solid';
 import useStore from '../store/useStore';
 import DownloadTasksButton from './DownloadTasksButton';
-import DownloadTasksModal from './DownloadTasksModal';
+import TaskFlyInAnimation from './TaskFlyInAnimation';
 
 // 用户菜单组件
 const UserMenu: React.FC = () => {
@@ -66,7 +66,38 @@ const UserMenu: React.FC = () => {
 };
 
 const Layout: React.FC = () => {
-  const [isTasksModalOpen, setIsTasksModalOpen] = useState(false);
+  const [animationState, setAnimationState] = useState<{
+    isVisible: boolean;
+    startPosition: { x: number; y: number };
+    endPosition: { x: number; y: number };
+    albumTitle: string;
+  } | null>(null);
+
+  const downloadTasksButtonRef = useRef<HTMLDivElement>(null);
+
+  // 触发动画
+  const handleAnimationTrigger = (startPosition: { x: number; y: number }, albumTitle: string) => {
+    if (downloadTasksButtonRef.current) {
+      const endRect = downloadTasksButtonRef.current.getBoundingClientRect();
+      const endPosition = {
+        x: endRect.left + endRect.width / 2,
+        y: endRect.top + endRect.height / 2
+      };
+
+      setAnimationState({
+        isVisible: true,
+        startPosition,
+        endPosition,
+        albumTitle
+      });
+    }
+  };
+
+  // 动画完成处理
+  const handleAnimationComplete = () => {
+    setAnimationState(null);
+    // 这里可以触发下载任务列表的刷新
+  };
 
   return (
     <div className="h-screen overflow-hidden">
@@ -87,23 +118,28 @@ const Layout: React.FC = () => {
               </div>
             </div>
             <div className="flex items-center space-x-2">
-              <DownloadTasksButton
-                onClick={() => setIsTasksModalOpen(true)}
-                hasActiveTasks={false}
-              />
+              <div ref={downloadTasksButtonRef}>
+                <DownloadTasksButton />
+              </div>
               <UserMenu />
             </div>
           </div>
         </div>
       </nav>
       <main>
-        <Outlet />
+        <Outlet context={{ onAnimationTrigger: handleAnimationTrigger }} />
       </main>
 
-      <DownloadTasksModal
-        isOpen={isTasksModalOpen}
-        onClose={() => setIsTasksModalOpen(false)}
-      />
+      {/* 飞入动画 */}
+      {animationState && (
+        <TaskFlyInAnimation
+          isVisible={animationState.isVisible}
+          startPosition={animationState.startPosition}
+          endPosition={animationState.endPosition}
+          albumTitle={animationState.albumTitle}
+          onAnimationComplete={handleAnimationComplete}
+        />
+      )}
     </div>
   );
 };

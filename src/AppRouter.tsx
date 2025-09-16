@@ -20,7 +20,7 @@ const router = createBrowserRouter([
     path: '/',
     element: <ProtectedRoute><Layout /></ProtectedRoute>,
     children: [
-      { index: true, element: <CanvasEditPage/> },
+      { index: true, element: <CanvasEditPage /> },
       { path: 'about', element: <AboutPage /> },
       { path: 'upload', element: <ImageUploadPage /> },
     ],

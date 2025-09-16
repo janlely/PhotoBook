@@ -12,7 +12,8 @@ interface AlbumTreeProps {
    onPageSelect?: (page: Page) => void;
    selectedPageId?: number;
    onDeletePage?: (pageId: number, albumId: number) => void;
- }
+   onAnimationTrigger?: (buttonPosition: { x: number; y: number }, albumTitle: string) => void;
+  }
 
 interface AlbumTreeItemProps {
    album: Album;
@@ -24,7 +25,8 @@ interface AlbumTreeItemProps {
    onCreatePage: (albumId: number) => void;
    onDeletePage?: (pageId: number, albumId: number) => void;
    onDeleteAlbum: (albumId: number, albumTitle: string) => void;
- }
+   onAnimationTrigger?: (buttonPosition: { x: number; y: number }, albumTitle: string) => void;
+  }
 
 const AlbumTreeItem: React.FC<AlbumTreeItemProps> = ({
    album,
@@ -36,7 +38,8 @@ const AlbumTreeItem: React.FC<AlbumTreeItemProps> = ({
    onCreatePage,
    onDeletePage,
    onDeleteAlbum,
- }) => {
+   onAnimationTrigger,
+  }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
   const handleToggle = () => {
@@ -88,6 +91,7 @@ const AlbumTreeItem: React.FC<AlbumTreeItemProps> = ({
           albumTitle={album.title}
           className="ml-1"
           iconOnly={true}
+          onAnimationTrigger={onAnimationTrigger}
         />
         <button
           onClick={(e) => {
@@ -162,8 +166,9 @@ const AlbumTree: React.FC<AlbumTreeProps> = ({
    selectedAlbumId,
    onPageSelect,
    selectedPageId,
-   onDeletePage
- }) => {
+   onDeletePage,
+   onAnimationTrigger
+  }) => {
   // 使用Zustand store作为唯一数据源
   const {
     albums: storeAlbums,
@@ -424,6 +429,7 @@ const AlbumTree: React.FC<AlbumTreeProps> = ({
                 onCreatePage={handleCreatePage}
                 onDeletePage={onDeletePage}
                 onDeleteAlbum={handleDeleteAlbum}
+                onAnimationTrigger={onAnimationTrigger}
               />
             ))
           )}

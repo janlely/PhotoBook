@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { albumsAPI } from '../api/albums';
 
 interface AlbumExportButtonProps {
@@ -7,16 +7,19 @@ interface AlbumExportButtonProps {
   className?: string;
   iconOnly?: boolean;
   onTaskCreated?: (taskId: number) => void;
+  onAnimationTrigger?: (buttonPosition: { x: number; y: number }, albumTitle: string) => void;
 }
 
 export const AlbumExportButton: React.FC<AlbumExportButtonProps> = ({
   albumId,
-  albumTitle: _albumTitle,
+  albumTitle,
   className,
   iconOnly,
-  onTaskCreated
+  onTaskCreated,
+  onAnimationTrigger
 }) => {
   const [isCreating, setIsCreating] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   const handleExport = async () => {
     if (!albumId) return;
@@ -32,8 +35,15 @@ export const AlbumExportButton: React.FC<AlbumExportButtonProps> = ({
         onTaskCreated(result.taskId);
       }
 
-      // 显示成功消息
-      alert(`PDF导出任务已创建！任务ID: ${result.taskId}\n请查看下载任务列表获取进度和下载链接。`);
+      // 触发动画效果
+      if (onAnimationTrigger && buttonRef.current) {
+        const buttonRect = buttonRef.current.getBoundingClientRect();
+        const buttonCenter = {
+          x: buttonRect.left + buttonRect.width / 2,
+          y: buttonRect.top + buttonRect.height / 2
+        };
+        onAnimationTrigger(buttonCenter, albumTitle);
+      }
 
     } catch (error) {
       console.error('创建导出任务失败:', error);
@@ -47,6 +57,7 @@ export const AlbumExportButton: React.FC<AlbumExportButtonProps> = ({
     <>
       {iconOnly ? (
         <button
+          ref={buttonRef}
           onClick={handleExport}
           disabled={isCreating || !albumId}
           className={`p-1 rounded hover:bg-gray-200 transition-colors ${className || ''}`}
@@ -65,6 +76,7 @@ export const AlbumExportButton: React.FC<AlbumExportButtonProps> = ({
         </button>
       ) : (
         <button
+          ref={buttonRef}
           onClick={handleExport}
           disabled={isCreating || !albumId}
           className={`flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${className || ''}`}
